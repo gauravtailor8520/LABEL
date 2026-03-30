@@ -669,9 +669,6 @@ export default function YoloLabelEditor() {
         {/* Header */}
         <header className="h-14 border-b border-gray-700 bg-gray-800 flex items-center justify-between px-4 shrink-0 z-10">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center">
-              <span className="text-white font-bold text-lg italic">L</span>
-            </div>
             <h1 className="text-lg font-bold text-white tracking-tight">Label Studio</h1>
           </div>
           

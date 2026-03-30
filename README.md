@@ -1,12 +1,26 @@
-# Label Studio 🏷️
+<p align="center">
+  <img src="public/readme-logo.png" width="800" alt="LABEL Logo">
+</p>
 
-![Label Studio](https://labelstud.io/images/label-studio-logo.svg)
 
-## Professional Document & Invoice Labeling Tool
 
-Label Studio is an advanced, high-performance annotation platform designed for YOLO dataset creation. Specifically optimized for complex documents like **invoices**, **receipts**, and **forms**, it provides a seamless, filesystem-first experience for AI researchers and developers.
+<p align="center">
+  <strong>LABEL: The high-performance AI document labeling app you were looking for.</strong><br>
+  Optimized for invoices, receipts, and complex forms. Hyper-configurable, filesystem-first, & no frustrating setup required.
+</p>
+
+
+
+<p align="center">
+  English 
+</p>
+
+<p align="center">
+  👉 <strong>LABEL for desktop (Mac, Windows, & Linux)!</strong> 
+</p>
 
 ---
+
 
 ## 🚀 Key Features
 
