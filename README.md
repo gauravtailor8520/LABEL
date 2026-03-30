@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/readme-logo.png" width="800" alt="LABEL Logo">
+  <img width="1919" height="862" alt="image" src="https://github.com/user-attachments/assets/d0024f24-e03a-402b-abfa-86043eb48c22" />
 </p>
 
 
