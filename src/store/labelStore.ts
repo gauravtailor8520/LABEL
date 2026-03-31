@@ -9,6 +9,7 @@ interface LabelStore {
   // Project data
   categories: Category[];
   setCategories: (categories: Category[]) => void;
+  updateCategoryColor: (id: number, color: string) => void;
 
   // Current image
   currentImageName: string | null;
@@ -67,6 +68,9 @@ export const useLabelStore = create<LabelStore>((set, get) => ({
   // Categories
   categories: [],
   setCategories: (categories) => set({ categories }),
+  updateCategoryColor: (id, color) => set((state) => ({
+    categories: state.categories.map((c) => (c.id === id ? { ...c, color } : c)),
+  })),
 
   // Current image
   currentImageName: null,

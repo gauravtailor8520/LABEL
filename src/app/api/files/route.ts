@@ -132,6 +132,30 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST: Update project settings (categories)
+export async function POST(request: NextRequest) {
+  try {
+    const { rootPath, categories } = await request.json();
+    
+    if (!rootPath || !categories) {
+      return NextResponse.json({ error: 'Missing rootPath or categories' }, { status: 400 });
+    }
+
+    const normalizedRoot = path.normalize(rootPath);
+    const notesPath = path.join(normalizedRoot, 'notes.json');
+    
+    await fs.writeFile(notesPath, JSON.stringify({ categories }, null, 2));
+    
+    return NextResponse.json({ success: true, message: 'Settings saved successfully' });
+  } catch (error: any) {
+    console.error('Save settings error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to save settings' },
+      { status: 500 }
+    );
+  }
+}
+
 function isImageFile(fileName: string): boolean {
   const ext = fileName.toLowerCase().split('.').pop() || '';
   return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);

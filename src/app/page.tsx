@@ -55,6 +55,7 @@ export default function YoloLabelEditor() {
     setRootPath,
     autoSave,
     setAutoSave,
+    updateCategoryColor,
     reset,
   } = useLabelStore();
 
@@ -490,6 +491,25 @@ export default function YoloLabelEditor() {
     }
   };
 
+  // Update Category Color
+  const handleUpdateCategoryColor = async (id: number, color: string) => {
+    updateCategoryColor(id, color);
+    if (rootPath) {
+      try {
+        await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rootPath,
+            categories: categories.map(c => c.id === id ? { ...c, color } : c)
+          }),
+        });
+      } catch (e) {
+        console.error('Failed to save category color', e);
+      }
+    }
+  };
+
   // Auto-save effect
   useEffect(() => {
     if (autoSave && isModified && currentLabelFilePath) {
@@ -597,7 +617,7 @@ export default function YoloLabelEditor() {
 
     const boxWidth = bottomRight.x - topLeft.x;
     const boxHeight = bottomRight.y - topLeft.y;
-    const color = getCategoryColor(label.classId);
+    const color = getCategoryColor(label.classId, categories);
     const category = categories.find(c => c.id === label.classId);
     const isSelected = selectedLabelId === label.id;
 
@@ -622,7 +642,7 @@ export default function YoloLabelEditor() {
         {/* Label badge/header */}
         <div
           className="absolute -top-2 left-0 px-1 py-0.25 rounded-t text-[5px] text-white font-bold flex items-center gap-1 leading-none"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: getCategoryColor(label.classId, categories) }}
         >
           <span>{category?.name || `Class ${label.classId}`}</span>
           {isSelected && (
@@ -807,21 +827,29 @@ export default function YoloLabelEditor() {
             <h2 className="text-sm font-semibold mb-2">Categories</h2>
             <div className="flex flex-wrap gap-1">
               {categories.map((cat) => (
-                <Button
-                  key={cat.id}
-                  variant={newLabelClass === cat.id ? 'default' : 'outline'}
-                  size="sm"
-                  className={`h-7 text-xs ${newLabelClass === cat.id ? '' : 'border-gray-600'}`}
-                  style={{
-                    backgroundColor: newLabelClass === cat.id ? getCategoryColor(cat.id) : 'transparent',
-                    borderColor: getCategoryColor(cat.id),
-                    color: newLabelClass === cat.id ? 'white' : getCategoryColor(cat.id),
-                  }}
-                  onClick={() => startNewLabel(cat.id)}
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  {cat.name}
-                </Button>
+                <div key={cat.id} className="relative group">
+                  <Button
+                    variant={newLabelClass === cat.id ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-7 text-xs ${newLabelClass === cat.id ? '' : 'border-gray-600'}`}
+                    style={{
+                      backgroundColor: newLabelClass === cat.id ? getCategoryColor(cat.id, categories) : 'transparent',
+                      borderColor: getCategoryColor(cat.id, categories),
+                      color: newLabelClass === cat.id ? 'white' : getCategoryColor(cat.id, categories),
+                    }}
+                    onClick={() => startNewLabel(cat.id)}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    {cat.name}
+                  </Button>
+                  <input
+                    type="color"
+                    value={getCategoryColor(cat.id, categories)}
+                    onChange={(e) => handleUpdateCategoryColor(cat.id, e.target.value)}
+                    className="absolute -top-1 -right-1 w-3 h-3 rounded-full border border-gray-600 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Change category color"
+                  />
+                </div>
               ))}
             </div>
           </div>

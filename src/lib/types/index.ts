@@ -57,6 +57,10 @@ export const CATEGORY_COLORS: string[] = [
   '#85C1E9',
 ];
 
-export function getCategoryColor(classId: number): string {
+export function getCategoryColor(classId: number, categories?: Category[]): string {
+  if (categories) {
+    const category = categories.find(c => c.id === classId);
+    if (category?.color) return category.color;
+  }
   return CATEGORY_COLORS[classId % CATEGORY_COLORS.length];
 }
