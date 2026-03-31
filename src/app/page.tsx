@@ -37,8 +37,8 @@ export default function YoloLabelEditor() {
     setCurrentImage,
     labels,
     setLabels,
-    selectedLabelId,
-    setSelectedLabelId,
+    selectedLabelIds,
+    setSelectedLabelIds,
     undo,
     redo,
     canUndo,
@@ -62,7 +62,7 @@ export default function YoloLabelEditor() {
   const [localPath, setLocalPath] = useState(rootPath || '');
 
   const [images, setImages] = useState<{ name: string; path: string }[]>([]);
-  const [copiedLabel, setCopiedLabel] = useState<Partial<YoloLabel> | null>(null);
+  const [copiedLabels, setCopiedLabels] = useState<Partial<YoloLabel>[]>([]);
   const [labelFiles, setLabelFiles] = useState<{ name: string; path: string }[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(-1);
   const [zoom, setZoom] = useState(1);
@@ -272,7 +272,7 @@ export default function YoloLabelEditor() {
     const isRightClick = e.button === 2;
 
     // Clear selection if clicking the background
-    setSelectedLabelId(null);
+    setSelectedLabelIds([]);
     if (newLabelClass === null) {
       setNewLabelClass(null);
     }
@@ -334,29 +334,31 @@ export default function YoloLabelEditor() {
       const height = Math.abs(normalized.y - drawStart.y);
 
       updateLabel('temp-new', { xCenter, yCenter, width, height });
-    } else if (isDragging && selectedLabelId) {
-      // Dragging existing label
+    } else if (isDragging && selectedLabelIds.length > 0) {
+      // Dragging existing label (only support dragging one for now to keep it simple, or move all)
       const normalized = screenToNormalized(x, y);
       if (!normalized) return;
 
-      const label = labels.find(l => l.id === selectedLabelId);
+      const selectedId = selectedLabelIds[0]; // Drag the primarily selected or first one
+      const label = labels.find(l => l.id === selectedId);
       if (label) {
         const dx = normalized.x - dragStart.x;
         const dy = normalized.y - dragStart.y;
 
-        updateLabel(selectedLabelId, {
+        updateLabel(selectedId, {
           xCenter: Math.max(label.width / 2, Math.min(1 - label.width / 2, label.xCenter + dx)),
           yCenter: Math.max(label.height / 2, Math.min(1 - label.height / 2, label.yCenter + dy)),
         });
 
         setDragStart(normalized);
       }
-    } else if (isResizing && selectedLabelId && resizeHandle) {
+    } else if (isResizing && selectedLabelIds.length > 0 && resizeHandle) {
       // Resizing existing label
       const normalized = screenToNormalized(x, y);
       if (!normalized) return;
 
-      const label = labels.find(l => l.id === selectedLabelId);
+      const selectedId = selectedLabelIds[0];
+      const label = labels.find(l => l.id === selectedId);
       if (label) {
         let newWidth = label.width;
         let newHeight = label.height;
@@ -387,7 +389,7 @@ export default function YoloLabelEditor() {
           newYCenter = fixedBottom - newHeight / 2;
         }
 
-        updateLabel(selectedLabelId, {
+        updateLabel(selectedId, {
           xCenter: Math.max(0, Math.min(1, newXCenter)),
           yCenter: Math.max(0, Math.min(1, newYCenter)),
           width: Math.max(0, Math.min(1, newWidth)),
@@ -409,14 +411,14 @@ export default function YoloLabelEditor() {
         };
         deleteLabel('temp-new');
         addLabel(newLabel);
-        setSelectedLabelId(newLabel.id);
+        setSelectedLabelIds([newLabel.id]);
       } else {
         deleteLabel('temp-new');
       }
       setNewLabelClass(null);
     }
 
-    if ((isDragging || isResizing) && selectedLabelId) {
+    if ((isDragging || isResizing) && selectedLabelIds.length > 0) {
       saveToHistory();
     }
 
@@ -428,14 +430,22 @@ export default function YoloLabelEditor() {
   };
 
   // Handle label selection
-  const handleLabelSelect = (labelId: string) => {
-    setSelectedLabelId(selectedLabelId === labelId ? null : labelId);
+  const handleLabelSelect = (labelId: string, isMulti: boolean = false) => {
+    if (isMulti) {
+      if (selectedLabelIds.includes(labelId)) {
+        setSelectedLabelIds(selectedLabelIds.filter(id => id !== labelId));
+      } else {
+        setSelectedLabelIds([...selectedLabelIds, labelId]);
+      }
+    } else {
+      setSelectedLabelIds(selectedLabelIds.includes(labelId) && selectedLabelIds.length === 1 ? [] : [labelId]);
+    }
   };
 
   // Start drawing new label
   const startNewLabel = (classId: number) => {
     setNewLabelClass(classId);
-    setSelectedLabelId(null);
+    setSelectedLabelIds([]);
   };
 
   // Handle label box mouse down
@@ -450,7 +460,13 @@ export default function YoloLabelEditor() {
     const normalized = screenToNormalized(x, y);
     if (!normalized) return;
 
-    setSelectedLabelId(labelId);
+    if (e.ctrlKey || e.metaKey) {
+      handleLabelSelect(labelId, true);
+    } else {
+      if (!selectedLabelIds.includes(labelId)) {
+        setSelectedLabelIds([labelId]);
+      }
+    }
 
     if (handle) {
       setIsResizing(true);
@@ -532,34 +548,38 @@ export default function YoloLabelEditor() {
             undo();
           }
         } else if (e.ctrlKey && e.key === 'c') {
-          // Copy
-          if (selectedLabelId) {
-            const label = labels.find(l => l.id === selectedLabelId);
-            if (label) {
-              setCopiedLabel({
-                classId: label.classId,
-                width: label.width,
-                height: label.height,
-                xCenter: label.xCenter,
-                yCenter: label.yCenter,
-              });
-              toast.success('Label copied');
-            }
+          // Copy selected labels
+          if (selectedLabelIds.length > 0) {
+            const selectedLabels = labels
+              .filter(l => selectedLabelIds.includes(l.id))
+              .map(l => ({
+                classId: l.classId,
+                width: l.width,
+                height: l.height,
+                xCenter: l.xCenter,
+                yCenter: l.yCenter,
+              }));
+            setCopiedLabels(selectedLabels);
+            toast.success(`${selectedLabels.length} labels copied`);
           }
         } else if (e.ctrlKey && e.key === 'v') {
-          // Paste
-          if (copiedLabel) {
-            const newLabel: YoloLabel = {
-              id: crypto.randomUUID(),
-              classId: copiedLabel.classId!,
-              width: copiedLabel.width!,
-              height: copiedLabel.height!,
-              xCenter: Math.min(1, copiedLabel.xCenter! + 0.02),
-              yCenter: Math.min(1, copiedLabel.yCenter! + 0.02),
-            };
-            addLabel(newLabel);
-            setSelectedLabelId(newLabel.id);
-            toast.success('Label pasted');
+          // Paste copied labels
+          if (copiedLabels.length > 0) {
+            const newIds: string[] = [];
+            copiedLabels.forEach(copied => {
+              const newLabel: YoloLabel = {
+                id: crypto.randomUUID(),
+                classId: copied.classId!,
+                width: copied.width!,
+                height: copied.height!,
+                xCenter: Math.min(1, copied.xCenter! + 0.02),
+                yCenter: Math.min(1, copied.yCenter! + 0.02),
+              };
+              addLabel(newLabel);
+              newIds.push(newLabel.id);
+            });
+            setSelectedLabelIds(newIds);
+            toast.success(`${copiedLabels.length} labels pasted`);
           }
         } else if (e.key === 's') {
           e.preventDefault();
@@ -568,14 +588,15 @@ export default function YoloLabelEditor() {
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedLabelId) {
-          deleteLabel(selectedLabelId);
-          toast.success('Label deleted');
+        if (selectedLabelIds.length > 0) {
+          selectedLabelIds.forEach(id => deleteLabel(id));
+          setSelectedLabelIds([]);
+          toast.success(`${selectedLabelIds.length} labels deleted`);
         }
       }
 
       if (e.key === 'Escape') {
-        setSelectedLabelId(null);
+        setSelectedLabelIds([]);
         setNewLabelClass(null);
         if (labels.find(l => l.id === 'temp-new')) {
           deleteLabel('temp-new');
@@ -585,7 +606,7 @@ export default function YoloLabelEditor() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLabelId, undo, redo, deleteLabel, labels]);
+  }, [selectedLabelIds, undo, redo, deleteLabel, labels, copiedLabels]);
 
   // Update canvas size on resize
   useEffect(() => {
@@ -619,7 +640,7 @@ export default function YoloLabelEditor() {
     const boxHeight = bottomRight.y - topLeft.y;
     const color = getCategoryColor(label.classId, categories);
     const category = categories.find(c => c.id === label.classId);
-    const isSelected = selectedLabelId === label.id;
+    const isSelected = selectedLabelIds.includes(label.id);
 
     return (
       <div
@@ -857,19 +878,19 @@ export default function YoloLabelEditor() {
           <div className="flex-1 overflow-hidden flex flex-col">
             <div className="p-3 border-b border-gray-700 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Labels ({labels.filter(l => l.id !== 'temp-new').length})</h2>
-              {selectedLabelId && (
+              {selectedLabelIds.length > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 text-red-400 hover:text-red-300"
                   onClick={() => {
-                    deleteLabel(selectedLabelId);
-                    setSelectedLabelId(null);
-                    toast.success('Label deleted');
+                    selectedLabelIds.forEach(id => deleteLabel(id));
+                    setSelectedLabelIds([]);
+                    toast.success('Labels deleted');
                   }}
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
-                  Delete
+                  Delete ({selectedLabelIds.length})
                 </Button>
               )}
             </div>
@@ -878,15 +899,17 @@ export default function YoloLabelEditor() {
               <div className="p-2 space-y-1">
                 {labels.filter(l => l.id !== 'temp-new').map((label) => {
                   const category = categories.find(c => c.id === label.classId);
-                  const color = getCategoryColor(label.classId);
-                  const isSelected = selectedLabelId === label.id;
+                  const color = getCategoryColor(label.classId, categories);
+                  const isSelected = selectedLabelIds.includes(label.id);
 
                   return (
                     <div
                       key={label.id}
-                      className={`p-2 rounded cursor-pointer transition-colors ${isSelected ? 'bg-gray-600' : 'bg-gray-700 hover:bg-gray-600'
+                      className={`p-2 rounded cursor-pointer transition-colors ${isSelected
+                        ? 'bg-indigo-600/30 border border-indigo-400/50'
+                        : 'bg-gray-700/50 border border-transparent hover:bg-gray-700'
                         }`}
-                      onClick={() => handleLabelSelect(label.id)}
+                      onClick={(e) => handleLabelSelect(label.id, e.ctrlKey || e.metaKey)}
                     >
                       <div className="flex items-center gap-2">
                         <div

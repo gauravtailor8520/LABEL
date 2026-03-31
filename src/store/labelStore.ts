@@ -24,9 +24,9 @@ interface LabelStore {
   labels: YoloLabel[];
   setLabels: (labels: YoloLabel[]) => void;
 
-  // Selected label
-  selectedLabelId: string | null;
-  setSelectedLabelId: (id: string | null) => void;
+  // Selected labels
+  selectedLabelIds: string[];
+  setSelectedLabelIds: (ids: string[]) => void;
 
   // History for undo/redo
   history: HistoryState[];
@@ -94,9 +94,9 @@ export const useLabelStore = create<LabelStore>((set, get) => ({
     get().saveToHistory();
   },
 
-  // Selected label
-  selectedLabelId: null,
-  setSelectedLabelId: (id) => set({ selectedLabelId: id }),
+  // Selected labels
+  selectedLabelIds: [],
+  setSelectedLabelIds: (ids) => set({ selectedLabelIds: ids }),
 
   // History
   history: [],
@@ -160,10 +160,10 @@ export const useLabelStore = create<LabelStore>((set, get) => ({
   },
 
   deleteLabel: (id) => {
-    const { labels, selectedLabelId } = get();
+    const { labels, selectedLabelIds } = get();
     set({
       labels: labels.filter((l) => l.id !== id),
-      selectedLabelId: selectedLabelId === id ? null : selectedLabelId,
+      selectedLabelIds: selectedLabelIds.filter((selectedId) => selectedId !== id),
     });
     get().saveToHistory();
   },
@@ -190,7 +190,7 @@ export const useLabelStore = create<LabelStore>((set, get) => ({
     currentImageName: null,
     currentImageData: null,
     labels: [],
-    selectedLabelId: null,
+    selectedLabelIds: [],
     history: [],
     historyIndex: -1,
     projectData: null,
