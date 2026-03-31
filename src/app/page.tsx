@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import {
   Upload,
   Undo2,
@@ -52,6 +53,8 @@ export default function YoloLabelEditor() {
     setIsModified,
     rootPath,
     setRootPath,
+    autoSave,
+    setAutoSave,
     reset,
   } = useLabelStore();
 
@@ -458,9 +461,9 @@ export default function YoloLabelEditor() {
   };
 
   // Save labels
-  const handleSave = async () => {
+  const handleSave = async (showToast = true) => {
     if (!currentLabelFilePath) {
-      toast.error('No output path defined');
+      if (showToast) toast.error('No output path defined');
       return;
     }
 
@@ -479,13 +482,23 @@ export default function YoloLabelEditor() {
       if (data.error) throw new Error(data.error);
 
       setIsModified(false);
-      toast.success('Labels saved directly to disk!');
+      if (showToast) toast.success('Labels saved directly to disk!');
     } catch (error: any) {
-      toast.error(`Save failed: ${error.message}`);
+      if (showToast) toast.error(`Save failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Auto-save effect
+  useEffect(() => {
+    if (autoSave && isModified && currentLabelFilePath) {
+      const timer = setTimeout(() => {
+        handleSave(false);
+      }, 1000); // 1-second debounce
+      return () => clearTimeout(timer);
+    }
+  }, [labels, autoSave, isModified, currentLabelFilePath]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -666,17 +679,17 @@ export default function YoloLabelEditor() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white overflow-hidden">
-        {/* Header */}
-        <header className="h-14 border-b border-gray-700 bg-gray-800 flex items-center justify-between px-4 shrink-0 z-10">
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-white tracking-tight">Label Studio</h1>
-          </div>
-          
-          <div className="flex items-center gap-2">          {currentImageName && (
-            <Badge variant="outline" className="text-gray-300">
-              {currentImageName}
-            </Badge>
-          )}
+      {/* Header */}
+      <header className="h-14 border-b border-gray-700 bg-gray-800 flex items-center justify-between px-4 shrink-0 z-10">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold text-white tracking-tight">Label Studio</h1>
+        </div>
+
+        <div className="flex items-center gap-2">          {currentImageName && (
+          <Badge variant="outline" className="text-gray-300">
+            {currentImageName}
+          </Badge>
+        )}
           {isModified && (
             <Badge variant="destructive" className="text-xs">Modified</Badge>
           )}
@@ -749,11 +762,23 @@ export default function YoloLabelEditor() {
 
           <Separator orientation="vertical" className="h-6 bg-gray-600" />
 
+          {/* Auto Save Toggle */}
+          <div className="flex items-center gap-2 mr-2">
+            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Auto Save</span>
+            <Switch
+              checked={autoSave}
+              onCheckedChange={setAutoSave}
+              className="data-[state=checked]:bg-green-500"
+            />
+          </div>
+
+          <Separator orientation="vertical" className="h-6 bg-gray-600" />
+
           {/* Save */}
           <Button
             variant="default"
             size="sm"
-            onClick={handleSave}
+            onClick={() => handleSave(true)}
             disabled={!isModified}
             className="bg-green-600 hover:bg-green-700"
           >

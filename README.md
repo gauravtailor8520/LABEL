@@ -25,6 +25,7 @@
 ## 🚀 Key Features
 
 - **Direct Filesystem Workflow**: No database required. Load and save directly to your local dataset folders.
+- **Real-Time Auto-Save**: Automatically synchronizes your label modifications to disk with a 1-second debounce (can be toggled in the header).
 - **Invoice Optimized**: Handles high-resolution documents with ease.
 - **Smart Interactions**:
   - **Scroll-to-Zoom & Panning**: Navigate complex documents like a pro.
@@ -90,7 +91,10 @@ my-dataset/
   - **Left Click on Background**: Panning (when in select mode).
 
 ### Step 4: Save Progress
-Click the **Save** button in the header. The app will write `.txt` files directly into your `/label` folder.
+By default, **Auto Save** is enabled. Your modifications will be written to `.txt` files in the `/label` folder automatically 1 second after you stop editing.
+
+- **Manual Save**: Click the **Save** button or press `Ctrl + S` at any time for manual confirmation.
+- **Toggle Auto-Save**: You can enable or disable this feature using the **Auto Save** switch in the header.
 
 ---
 
