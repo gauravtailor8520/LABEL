@@ -781,6 +781,7 @@ export default function YoloLabelEditor() {
           <Separator orientation="vertical" className="h-6 bg-gray-600" />
 
           {/* Navigation */}
+
           <Button
             variant="ghost"
             size="sm"
@@ -799,6 +800,87 @@ export default function YoloLabelEditor() {
             disabled={currentImageIndex >= images.length - 1}
           >
             <ChevronRight className="w-4 h-4" />
+          </Button>
+
+          {/* Delete Image Button */}
+          <Button
+            variant="destructive"
+            size="sm"
+            className="ml-2"
+            disabled={currentImageIndex < 0 || images.length === 0 || isLoading}
+            onClick={async () => {
+              if (currentImageIndex < 0 || images.length === 0 || !rootPath) return;
+              const img = images[currentImageIndex];
+              if (!window.confirm(`Delete image '${img.name}' and its label? This can be undone.`)) return;
+              setIsLoading(true);
+              try {
+                const res = await fetch('/api/files', {
+                  method: 'DELETE',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ imagePath: img.path, rootPath }),
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                // Remove from state and load next image
+                const newImages = images.filter((_, idx) => idx !== currentImageIndex);
+                setImages(newImages);
+                setLabels([]);
+                setCurrentImage(null, null);
+                setCurrentLabelFilePath(null);
+                if (newImages.length > 0) {
+                  load_image_(Math.min(currentImageIndex, newImages.length - 1), newImages, labelFiles);
+                } else {
+                  setCurrentImageIndex(-1);
+                }
+                // Show undo toast using sonner's action button
+                toast(
+                  'Image and label deleted.',
+                  {
+                    duration: 10000,
+                    action: {
+                      label: 'Undo',
+                      onClick: async () => {
+                        try {
+                          await fetch('/api/files', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              trashedImagePath: data.trashedImagePath,
+                              trashedLabelPath: data.trashedLabelPath,
+                              imagePath: data.imagePath,
+                              labelPath: data.labelPath,
+                            }),
+                          });
+                          setImages(prev => {
+                            const restored = [...prev];
+                            restored.splice(currentImageIndex, 0, { name: img.name, path: img.path });
+                            return restored;
+                          });
+                          setTimeout(() => {
+                            load_image_(currentImageIndex, [
+                              ...images.slice(0, currentImageIndex),
+                              { name: img.name, path: img.path },
+                              ...images.slice(currentImageIndex)
+                            ], labelFiles);
+                          }, 100);
+                          setCurrentImageIndex(currentImageIndex);
+                          toast.success('Image and label restored');
+                        } catch (e) {
+                          toast.error('Failed to restore image/label');
+                        }
+                      },
+                    },
+                  }
+                );
+              } catch (e: any) {
+                toast.error(`Delete failed: ${e.message}`);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            title="Delete image and label"
+          >
+            <Trash2 className="w-4 h-4 mr-1" /> Delete Image
           </Button>
 
           <Separator orientation="vertical" className="h-6 bg-gray-600" />

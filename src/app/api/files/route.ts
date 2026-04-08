@@ -1,3 +1,71 @@
+// DELETE: Delete image and corresponding label file
+// Move file to .trash for undo
+async function moveToTrash(filePath: string, rootPath: string) {
+  const trashDir = path.join(rootPath, '.trash');
+  await fs.mkdir(trashDir, { recursive: true });
+  const fileName = path.basename(filePath);
+  const trashPath = path.join(trashDir, `${Date.now()}_${fileName}`);
+  await fs.rename(filePath, trashPath);
+  return trashPath;
+}
+
+// DELETE: Move image and label to .trash for undo
+export async function DELETE(request: NextRequest) {
+  try {
+    const { imagePath, rootPath } = await request.json();
+    if (!imagePath || !rootPath) {
+      return NextResponse.json({ error: 'Missing imagePath or rootPath' }, { status: 400 });
+    }
+
+    // Move image file to .trash
+    const trashedImagePath = await moveToTrash(imagePath, rootPath);
+
+    // Find corresponding label file (same base name, .txt extension)
+    const imageBase = path.basename(imagePath, path.extname(imagePath));
+    let labelDir = path.join(rootPath, 'label');
+    let labelPath = path.join(labelDir, imageBase + '.txt');
+    let trashedLabelPath = null;
+    let labelExists = false;
+    try {
+      await fs.access(labelPath);
+      labelExists = true;
+    } catch {
+      labelDir = path.join(rootPath, 'labels');
+      labelPath = path.join(labelDir, imageBase + '.txt');
+      try {
+        await fs.access(labelPath);
+        labelExists = true;
+      } catch {}
+    }
+    if (labelExists) {
+      trashedLabelPath = await moveToTrash(labelPath, rootPath);
+    }
+
+    return NextResponse.json({ success: true, message: 'Image and label moved to trash.', trashedImagePath, trashedLabelPath, imagePath, labelPath });
+  } catch (error: any) {
+    console.error('Delete image/label error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to delete image/label' }, { status: 500 });
+  }
+}
+
+// POST /api/files?action=restore : Restore trashed image/label
+export async function PUT(request: NextRequest) {
+  try {
+    const { trashedImagePath, trashedLabelPath, imagePath, labelPath } = await request.json();
+    // Restore image
+    if (trashedImagePath && imagePath) {
+      await fs.rename(trashedImagePath, imagePath);
+    }
+    // Restore label
+    if (trashedLabelPath && labelPath) {
+      await fs.rename(trashedLabelPath, labelPath);
+    }
+    return NextResponse.json({ success: true, message: 'Image and label restored.' });
+  } catch (error: any) {
+    console.error('Restore image/label error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to restore image/label' }, { status: 500 });
+  }
+}
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
