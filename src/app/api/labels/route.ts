@@ -85,3 +85,84 @@ function parseYoloLabels(content: string): YoloLabel[] {
   
   return labels;
 }
+
+// Delete a specific label match from file
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const filePath = searchParams.get('filePath');
+    const classIdStr = searchParams.get('classId');
+    const xStr = searchParams.get('x');
+    const yStr = searchParams.get('y');
+    const wStr = searchParams.get('w');
+    const hStr = searchParams.get('h');
+
+    if (!filePath || classIdStr === null || !xStr || !yStr || !wStr || !hStr) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      );
+    }
+
+    const classId = parseInt(classIdStr);
+    const targetX = parseFloat(xStr);
+    const targetY = parseFloat(yStr);
+    const targetW = parseFloat(wStr);
+    const targetH = parseFloat(hStr);
+
+    // Read existing file
+    let content = "";
+    try {
+      content = await fs.readFile(filePath, 'utf-8');
+    } catch (e) {
+      return NextResponse.json({ error: 'Label file not found' }, { status: 404 });
+    }
+
+    const lines = content.split('\n');
+    let deletedCount = 0;
+
+    const remainingLines = lines.filter(line => {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 5) {
+        const cid = parseInt(parts[0]);
+        const x = parseFloat(parts[1]);
+        const y = parseFloat(parts[2]);
+        const w = parseFloat(parts[3]);
+        const h = parseFloat(parts[4]);
+
+        const matchCid = cid === classId;
+        const matchX = Math.abs(x - targetX) < 0.0001;
+        const matchY = Math.abs(y - targetY) < 0.0001;
+        const matchW = Math.abs(w - targetW) < 0.0001;
+        const matchH = Math.abs(h - targetH) < 0.0001;
+
+        if (matchCid && matchX && matchY && matchW && matchH) {
+          deletedCount++;
+          return false; // exclude this label
+        }
+      }
+      return true; // keep label
+    });
+
+    if (deletedCount > 0) {
+      const newContent = remainingLines.join('\n').trim();
+      if (newContent === '') {
+        await fs.writeFile(filePath, ''); // empty file content
+      } else {
+        await fs.writeFile(filePath, newContent + '\n');
+      }
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: `Successfully deleted ${deletedCount} extra label(s).`,
+      deletedCount
+    });
+  } catch (error: any) {
+    console.error('Delete extra label error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete extra label' },
+      { status: 500 }
+    );
+  }
+}

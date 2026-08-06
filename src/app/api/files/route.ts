@@ -73,9 +73,16 @@ export async function GET(request: NextRequest) {
         const labelEntries = await fs.readdir(labelDirPath, { withFileTypes: true });
         for (const entry of labelEntries) {
           if (entry.isFile() && entry.name.endsWith('.txt')) {
+            const filePath = path.join(labelDirPath, entry.name);
+            let size = 0;
+            try {
+              const stat = await fs.stat(filePath);
+              size = stat.size;
+            } catch {}
             labelFiles.push({ 
               name: entry.name, 
-              path: path.join(labelDirPath, entry.name) 
+              path: filePath,
+              size
             });
           }
         }
@@ -102,7 +109,7 @@ export async function GET(request: NextRequest) {
       const buffer = await fs.readFile(imagePath);
       const base64 = buffer.toString('base64');
       const ext = path.extname(imagePath).toLowerCase().slice(1);
-      const mimeType = ext === 'jpg' ? 'jpeg' : ext;
+      const mimeType = ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext;
       
       return NextResponse.json({
         dataUrl: `data:image/${mimeType};base64,${base64}`,
@@ -156,9 +163,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// DELETE: Delete an image and its corresponding label file
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const imagePath = searchParams.get('imagePath');
+    const labelPath = searchParams.get('labelPath');
+
+    if (!imagePath && !labelPath) {
+      return NextResponse.json({ error: 'Missing image or label path' }, { status: 400 });
+    }
+
+    // 1. Delete the image file if path is specified
+    if (imagePath) {
+      try {
+        await fs.unlink(imagePath);
+      } catch (e: any) {
+        console.warn(`Could not delete image file at ${imagePath}:`, e.message);
+      }
+    }
+
+    // 2. Delete label file if path is specified
+    if (labelPath) {
+      try {
+        await fs.unlink(labelPath);
+      } catch (e: any) {
+        console.warn(`Could not delete label file at ${labelPath}:`, e.message);
+      }
+    }
+
+    return NextResponse.json({ success: true, message: 'Image and labels deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete API error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Deletion failed' },
+      { status: 500 }
+    );
+  }
+}
+
 function isImageFile(fileName: string): boolean {
   const ext = fileName.toLowerCase().split('.').pop() || '';
-  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);
+  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
 }
 
 function parseYoloLabels(content: string): any[] {
