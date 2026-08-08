@@ -131,11 +131,17 @@ LABEL Studio is built using a modern, performant web stack:
 -   **Charts & Visualization**: [Recharts](https://recharts.org/)
 -   **Transitions & Animations**: [Framer Motion](https://www.framer.com/motion/)
 
----
+## Feedback & Contributions
 
-## Contributing
+We welcome community contributions, ideas, bug reports, and general feedback to make LABEL Studio even better!
 
-We welcome community contributions to make LABEL Studio even better!
+### 💬 Feedback & Suggestions
+If you have suggestions, feature requests, or find any bugs, feel free to:
+*   Open an [Issue](https://github.com/gauravtailor8520/LABEL/issues) to report bugs or request features.
+*   Contribute to discussions and ask questions.
+
+### 🛠️ Contributing
+We love collaboration! To contribute:
 1.  Fork the repository.
 2.  Create your feature branch (`git checkout -b feature/LABELFeature`).
 3.  Commit your changes (`git commit -m 'Add some LABELFeature'`).

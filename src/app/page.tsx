@@ -114,44 +114,6 @@ export default function YoloLabelEditor() {
     return () => clearInterval(interval);
   }, [rootPath]);
 
-  // Suppress third-party chrome extension errors (e.g. MetaMask's inpage.js) from triggering the Next.js dev overlay
-  useEffect(() => {
-    const handleExtensionErrors = (event: ErrorEvent) => {
-      const isExtension =
-        event.filename?.includes('chrome-extension://') ||
-        event.error?.stack?.includes('chrome-extension://') ||
-        event.message?.includes('MetaMask') ||
-        event.message?.includes('nkbihfbeogaeaoehlefnkodbefgpgknn');
-
-      if (isExtension) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    const handleExtensionRejections = (event: PromiseRejectionEvent) => {
-      const reasonStack = event.reason?.stack || '';
-      const reasonMessage = event.reason?.message || '';
-      const isExtension =
-        reasonStack.includes('chrome-extension://') ||
-        reasonMessage.includes('MetaMask') ||
-        reasonMessage.includes('nkbihfbeogaeaoehlefnkodbefgpgknn');
-
-      if (isExtension) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    window.addEventListener('error', handleExtensionErrors, true);
-    window.addEventListener('unhandledrejection', handleExtensionRejections, true);
-
-    return () => {
-      window.removeEventListener('error', handleExtensionErrors, true);
-      window.removeEventListener('unhandledrejection', handleExtensionRejections, true);
-    };
-  }, []);
-
   useEffect(() => {
     setZoomInput(`${Math.round(zoom * 100)}%`);
   }, [zoom]);
@@ -1142,7 +1104,6 @@ export default function YoloLabelEditor() {
     // Remove labels using this classId
     const updatedLabels = labels.filter(l => l.classId !== category.id);
     setLabels(updatedLabels);
-    saveToHistory(updatedLabels);
     setIsModified(true);
 
     if (newLabelClass === category.id) {

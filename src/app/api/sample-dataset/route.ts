@@ -12,7 +12,28 @@ export async function GET() {
     const prebuiltZipPath = path.join(process.cwd(), 'sample-dataset.zip');
     await fs.access(prebuiltZipPath);
     const fileBuffer = await fs.readFile(prebuiltZipPath);
-    return new NextResponse(fileBuffer, {
+    
+    // Parse in memory to ensure notes.json is converted to classes.json
+    const zip = await JSZip.loadAsync(fileBuffer);
+    let notesFileKey: string | null = null;
+    for (const key of Object.keys(zip.files)) {
+      if (key.toLowerCase().endsWith('notes.json')) {
+        notesFileKey = key;
+        break;
+      }
+    }
+    
+    if (notesFileKey) {
+      const notesContent = await zip.files[notesFileKey].async('nodebuffer');
+      zip.remove(notesFileKey);
+      const dirPath = path.dirname(notesFileKey);
+      const classesFileKey = dirPath === '.' ? 'classes.json' : path.join(dirPath, 'classes.json').replace(/\\/g, '/');
+      zip.file(classesFileKey, notesContent);
+    }
+    
+    const archive = await zip.generateAsync({ type: 'nodebuffer' });
+    
+    return new NextResponse(archive, {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="sample-dataset.zip"`,
@@ -114,7 +135,8 @@ async function addDirectoryToZip(zipFolder: JSZip, sourceDir: string) {
 
     if (entry.isFile()) {
       const fileBuffer = await fs.readFile(sourcePath);
-      zipFolder.file(entry.name, fileBuffer);
+      const targetName = entry.name.toLowerCase() === 'notes.json' ? 'classes.json' : entry.name;
+      zipFolder.file(targetName, fileBuffer);
     }
   }
 }

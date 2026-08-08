@@ -37,6 +37,84 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          async
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const originalConsoleError = console.error;
+                const originalConsoleWarn = console.warn;
+
+                function isExtensionError(args) {
+                  try {
+                    for (let i = 0; i < args.length; i++) {
+                      const arg = args[i];
+                      if (!arg) continue;
+                      const argStr = typeof arg === 'string' ? arg : (arg.message || arg.stack || arg.toString?.() || '');
+                      if (
+                        argStr.includes('extension://') ||
+                        argStr.includes('inpage.js') ||
+                        argStr.toLowerCase().includes('metamask')
+                      ) {
+                        return true;
+                      }
+                    }
+                  } catch (e) {
+                    // Safe fallback
+                  }
+                  return false;
+                }
+
+                console.error = function(...args) {
+                  if (isExtensionError(args)) return;
+                  originalConsoleError.apply(console, args);
+                };
+
+                console.warn = function(...args) {
+                  if (isExtensionError(args)) return;
+                  originalConsoleWarn.apply(console, args);
+                };
+
+                window.addEventListener('error', function(event) {
+                  const message = event.message || '';
+                  const filename = event.filename || '';
+                  const errorStack = event.error?.stack || '';
+                  const isExtension =
+                    filename.includes('extension://') ||
+                    errorStack.includes('extension://') ||
+                    message.includes('extension://') ||
+                    errorStack.includes('inpage.js') ||
+                    message.toLowerCase().includes('metamask');
+                  if (isExtension) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                  }
+                }, true);
+
+                window.addEventListener('unhandledrejection', function(event) {
+                  const reason = event.reason;
+                  if (!reason) return;
+                  const stack = reason.stack || '';
+                  const message = reason.message || '';
+                  const reasonStr = typeof reason === 'string' ? reason : (reason.toString?.() || '');
+                  const isExtension =
+                    stack.includes('extension://') ||
+                    message.includes('extension://') ||
+                    reasonStr.includes('extension://') ||
+                    stack.includes('inpage.js') ||
+                    reasonStr.toLowerCase().includes('metamask') ||
+                    message.toLowerCase().includes('metamask');
+                  if (isExtension) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                  }
+                }, true);
+              })();
+            `
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning

@@ -3,7 +3,6 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-
 const STORAGE_DIR = path.join(os.homedir(), '.label-studio-app');
 const STORAGE_FILE = path.join(STORAGE_DIR, 'projects.json');
 
