@@ -1,111 +1,162 @@
-<p align="center">
-  <img width="1919" height="862" alt="image" src="https://github.com/user-attachments/assets/d0024f24-e03a-402b-abfa-86043eb48c22" />
-</p>
-
-
+# <p align="center"><img src="public/assets/logo.png" alt="LABEL Logo" width="80" height="80" /><br>LABEL</p>
 
 <p align="center">
-  <strong>LABEL: The high-performance AI document labeling app you were looking for.</strong><br>
-  Optimized for invoices, receipts, and complex forms. Hyper-configurable, filesystem-first, & no frustrating setup required.
-</p>
-
-
-
-<p align="center">
-  English 
+  <a href="https://github.com/gauravtailor8520/LABEL/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License" /></a>
+  <img src="https://img.shields.io/badge/Next.js-15-black.svg" alt="Next.js" />
+  <img src="https://img.shields.io/badge/TypeScript-5-blue.svg" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-3-38bdf8.svg" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/PRs-welcome-orange.svg" alt="PRs Welcome" />
 </p>
 
 <p align="center">
-  👉 <strong>LABEL for desktop (Mac, Windows, & Linux)!</strong> 
+  <img width="100%" alt="LABEL Studio Interface" src="https://github.com/user-attachments/assets/d0024f24-e03a-402b-abfa-86043eb48c22" />
 </p>
+
+<p align="center">
+  <img width="100%" alt="Terminal Analytics View" src="public/Screenshots/Termianl.png" />
+</p>
+
+> [!IMPORTANT]
+> **LABEL** is a high-performance, filesystem-first AI document labeling workspace designed for speed, precision, and complete data privacy. Easily annotate invoice forms, receipts, and dense layouts with real-time automatic saving and deep validation diagnostics.
 
 ---
 
-
-## 🚀 Key Features
-
-- **Direct Filesystem Workflow**: No database required. Load and save directly to your local dataset folders.
-- **Real-Time Auto-Save**: Automatically synchronizes your label modifications to disk with a 1-second debounce (can be toggled in the header).
-- **Invoice Optimized**: Handles high-resolution documents with ease.
-- **Smart Interactions**:
-  - **Scroll-to-Zoom & Panning**: Navigate complex documents like a pro.
-  - **Edge-Anchored Resizing**: Precise bounding box adjustments.
-  - **Copy/Paste (Ctrl+C/V)**: Rapidly replicate similar fields.
-- **YOLO Format Native**: Automatically reads and writes standard `.txt` label files and `notes.json` categories.
-- **Premium UI**: Modern dark-mode interface with compact labeling for dense documents.
+## Video Demonstration
+> [!NOTE]
+> *Video walk-through section (To be updated with the demo recording shortly).*
 
 ---
 
-## 🛠️ Getting Started
+## Key Features
 
-### 1. Installation
-Ensure you have [Node.js](https://nodejs.org/) and `pnpm` installed.
+*   **Filesystem-First Architecture**: No external databases, servers, or cloud syncing required. Read and write directly to your local YOLO dataset folders with complete data privacy.
+*   **Real-Time Auto-Save**: Seamlessly saves your annotation modifications to disk with a 1-second debounce (can be toggled in the header).
+*   **Optimized for Invoices & Dense Forms**: Supports ultra-high-resolution images, fine-grained details, and complex documents.
+*   **Smart Interactive Workspace**:
+    *   **Smooth Zooming & Panning**: Use mouse wheel scroll to zoom and right-click-drag (or background-left-click-drag) to pan.
+    *   **Precise Box Tuning**: Edge-anchored bounding box drawing and resizing.
+    *   **Copy & Paste (Ctrl+C / Ctrl+V)**: Replicate identical label bounding boxes instantly across areas.
+*   **Comprehensive Data Diagnostics Dashboard**:
+    *   **Dataset Health Score**: Analyzes box overlaps, empty annotations, out-of-bounds coordinates, and label-to-image ratios.
+    *   **Unified Validation Console**: Identifies duplicate images, duplicate labels, unlinked images/labels, and unregistered class categories.
+    *   **Distribution Analysis**: Highlights class frequency imbalances and category configurations.
+*   **Extension Support**: Built-in support for real-time WebSocket communication and streaming dataset sync.
 
+---
+
+## Installation & Getting Started
+
+### Prerequisites
+Make sure you have [Node.js](https://nodejs.org/) (v18.x or higher) and package manager of your choice (`npm`, `pnpm`, or `yarn`) installed.
+
+### 1. Clone & Install Dependencies
 ```bash
-pnpm install
+git clone https://github.com/gauravtailor8520/LABEL.git
+cd LABEL
+npm install
+# Or if using pnpm: pnpm install
 ```
 
-### 2. Run Locally
-
+### 2. Run the Development Server
 ```bash
-pnpm dev
+npm run dev
+# Or: pnpm dev
 ```
-The application will be available at `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000) in your browser to start labeling.
 
 ---
 
-## 📖 How to Use
+## How to Prepare Your Dataset
 
-### Step 1: Prepare your Dataset
-Your dataset folder should have the following structure:
+LABEL Studio is filesystem-first and assumes a clean directory layout. Set up your dataset directory using the following structure:
+
 ```text
-my-dataset/
-├── image/       (Contains .png, .jpg, .jpeg images)
-├── label/       (Empty or contains existing YOLO .txt files)
-└── notes.json   (Your category definitions)
+my-dataset-workspace/
+├── image/       (Contains your .png, .jpg, .jpeg images)
+├── label/       (Contains matching YOLO .txt annotation files)
+└── classes.json (Your category and class label definitions)
 ```
 
-**notes.json format:**
+### Creating `classes.json`
+Before loading the project, define your category configuration in `classes.json` at the root of your dataset folder:
+
 ```json
 {
   "categories": [
-    {"id": 0, "name": "Logo"},
-    {"id": 1, "name": "Table"},
-    {"id": 2, "name": "Text"}
+    { "id": 0, "name": "header_logo" },
+    { "id": 1, "name": "invoice_number" },
+    { "id": 2, "name": "billing_address" },
+    { "id": 3, "name": "line_item" },
+    { "id": 4, "name": "total_amount" }
   ]
 }
 ```
 
-### Step 2: Load the Directory
-1. Open the app and click **Open Files**.
-2. Paste the **absolute path** to your `my-dataset` folder.
-3. Click **Load**.
+---
 
-### Step 3: Start Labeling
-- **Select a Category**: Click on a category in the sidebar (Logo, Text, etc.).
-- **Draw**: Left-click and drag on the document to create a box.
-- **Adjust**: Click a box to select it. Drag it to move, or use the corner handles to resize.
-- **Navigate**: 
-  - **Mouse Wheel**: Zoom in/out.
-  - **Right Click + Drag**: Pan the document.
-  - **Left Click on Background**: Panning (when in select mode).
+## Workspace Keyboard Shortcuts
 
-### Step 4: Save Progress
-By default, **Auto Save** is enabled. Your modifications will be written to `.txt` files in the `/label` folder automatically 1 second after you stop editing.
-
-- **Manual Save**: Click the **Save** button or press `Ctrl + S` at any time for manual confirmation.
-- **Toggle Auto-Save**: You can enable or disable this feature using the **Auto Save** switch in the header.
+| Shortcut | Description |
+| :--- | :--- |
+| **`Ctrl` + `S`** | Manually save active file modifications |
+| **`Ctrl` + `C`** | Copy the currently selected bounding box annotation |
+| **`Ctrl` + `V`** | Paste the copied bounding box onto the workspace |
+| **`Backspace`** / **`Delete`** | Remove the selected bounding box |
+| **`Mouse Wheel Scroll`** | Zoom in / Zoom out of the active document |
+| **`Right Click` + `Drag`** | Pan the canvas around the document |
+| **`Left Click` + `Drag`** | Draw a new bounding box (or pan canvas if clicking on empty background) |
 
 ---
 
-## ✨ Best Practices for Invoices
+## Dataset Diagnostics & Integrity Report
 
-1. **Precision Matters**: Zoom in deep before adjusting edges for fields like "Total Amount" or "Tax ID".
-2. **Standardization**: Use the same category IDs across all images for consistent training.
-3. **Speed up with Copy/Paste**: For tables with many similar rows, draw one box, then `Ctrl+C` and `Ctrl+V` to quickly create the others.
-4. **Independent Edges**: Always use the corner handles to lock the opposite side in place for exact alignment.
+The platform features an advanced analytical suite to validate dataset quality:
+1.  **Overview Report**: View class frequency splits, bounding box sizes, and dataset health score summaries.
+2.  **Dataset Integrity Checks**: Instantly scan your directories for:
+    *   **Duplicate Image Files**: Images with different filenames but identical binary content.
+    *   **Duplicate Label Files**: Label files containing identical sets of bounding boxes.
+    *   **Unlinked Images**: Images missing their corresponding `.txt` annotation file.
+    *   **Unlinked Labels**: `.txt` annotation files missing the corresponding image file.
+    *   **Unregistered Classes**: Bounding boxes tagged with class IDs not configured in your `classes.json`.
+3.  **One-Click Purges**: Batch delete or resolve duplication and orphan file warnings directly from the dashboard validation table.
 
 ---
 
-## 🏗️ Architecture
-Built with **Next.js**, **Tailwind CSS**, and **Zustand** for state management. No external database or cloud dependency is required, ensuring absolute data privacy.
+## Architecture
+
+LABEL Studio is built using a modern, performant web stack:
+-   **Framework**: [Next.js](https://nextjs.org/) (App Router, Tailwind CSS, TypeScript)
+-   **State Management**: React Context & Hooks
+-   **Iconography**: [Lucide React](https://lucide.dev/)
+-   **Charts & Visualization**: [Recharts](https://recharts.org/)
+-   **Transitions & Animations**: [Framer Motion](https://www.framer.com/motion/)
+
+## Feedback & Contributions
+
+We welcome community contributions, ideas, bug reports, and general feedback to make LABEL Studio even better!
+
+### 💬 Feedback & Suggestions
+If you have suggestions, feature requests, or find any bugs, feel free to:
+*   Open an [Issue](https://github.com/gauravtailor8520/LABEL/issues) to report bugs or request features.
+*   Contribute to discussions and ask questions.
+
+### 🛠️ Contributing
+We love collaboration! To contribute:
+1.  Fork the repository.
+2.  Create your feature branch (`git checkout -b feature/LABELFeature`).
+3.  Commit your changes (`git commit -m 'Add some LABELFeature'`).
+4.  Push to the branch (`git push origin feature/LABELFeature`).
+5.  Open a Pull Request.
+
+---
+
+## License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ for the community</strong><br>
+  I love building open-source tools that are genuinely useful, free, and accessible for everyone. This project is created for the community to learn, grow, and build together!
+</p>

@@ -133,3 +133,29 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* Custom Dark High-Contrast Theme Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1718;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #383436;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FC7603;
+}
+
+/* Firefox scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #383436 #1a1718;
+}
