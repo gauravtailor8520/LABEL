@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
+import { Search } from 'lucide-react';
+
 interface ExplorerTabProps {
   data: any;
   darkMode: boolean;
@@ -46,13 +48,16 @@ export default function ExplorerTab({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Input
-            type="text"
-            placeholder="Filter by image name..."
-            className="bg-[#231F20] border-zinc-800 text-xs h-9 w-64 rounded-lg text-zinc-200"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+          <div className="relative w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#FC7603]" />
+            <input
+              type="text"
+              placeholder="Filter by image name..."
+              className="w-full bg-[#000000] border border-[#FC7603] rounded-full h-8 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#FC7603] text-zinc-100 placeholder-zinc-500 transition-all shadow-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

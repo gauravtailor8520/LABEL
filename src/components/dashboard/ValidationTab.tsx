@@ -187,57 +187,56 @@ export default function ValidationTab({
         </p>
       </div>
 
-      <Card className={`border-none rounded-2xl shadow-lg ${
+      <Card className={`border-none rounded-xl shadow-md ${
         darkMode ? 'bg-[#231F20] border border-[#000000]' : 'bg-white border border-slate-200'
       }`}>
-        <CardContent className="p-6 space-y-6">
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">File System Structures</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { label: 'data.yaml config parsed', status: data.validation.hasYaml, desc: 'Required class definitions mappings' },
-                { label: 'classes.txt present', status: data.validation.hasClassesText, desc: 'YOLO category metadata file' },
-                { label: 'Folder structures valid', status: data.validation.trainValid && data.validation.valValid, desc: 'Presence of image and label subdirs' }
-              ].map((item, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-black/40 border border-[#000000] flex items-start gap-3">
-                  {item.status ? (
-                    <CheckCircle2 className="w-5 h-5 text-[#004526] shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-[#C31230] shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-200">{item.label}</p>
-                    <p className="text-[10px] text-zinc-500 mt-1">{item.desc}</p>
+        <CardContent className="py-2.5 px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* File System Structures */}
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">File System:</span>
+              <div className="flex items-center gap-2">
+                {[
+                  { label: 'data.yaml config parsed', status: data.validation.hasYaml },
+                  { label: 'classes.txt present', status: data.validation.hasClassesText },
+                  { label: 'Folder structures valid', status: data.validation.trainValid && data.validation.valValid }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-md border border-[#000000]">
+                    {item.status ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#004526] shrink-0" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-[#C31230] shrink-0" />
+                    )}
+                    <span className="text-[11px] font-medium text-zinc-300">{item.label}</span>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-          <Separator className="bg-[#000000]" />
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Integrity Checks Warnings</h3>
-            <div className="space-y-2">
-              {data.validation.warnings.map((warn: string, idx: number) => (
-                <div key={idx} className="p-3 rounded-lg bg-[#C31230]/5 border border-[#C31230]/10 text-xs text-[#C31230] flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span className="font-semibold">{warn}</span>
-                  <span className="text-[10px] text-zinc-500 ml-auto italic">Auto discovered in background scanning</span>
+            {/* Integrity Warnings Status */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Integrity Checks:</span>
+              {data.validation.warnings.length === 0 ? (
+                <div className="flex items-center gap-1.5 bg-[#004526]/10 px-2.5 py-1 rounded-md border border-[#004526]/20 text-[#004526]">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-semibold">All file system checks passed successfully!</span>
                 </div>
-              ))}
-              {data.validation.warnings.length === 0 && (
-                <div className="p-4 rounded-lg bg-[#004526]/5 border border-[#004526]/10 text-xs text-[#004526] flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>All file system checks passed successfully!</span>
+              ) : (
+                <div className="flex items-center gap-1.5 bg-[#C31230]/10 px-2.5 py-1 rounded-md border border-[#C31230]/20 text-[#C31230]">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-semibold">{data.validation.warnings.length} Warnings Found</span>
                 </div>
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <Separator className="bg-[#000000] my-4" />
-
-          {/* SINGLE UNIFIED ISSUES CONSOLE TABLE */}
+      {/* SINGLE UNIFIED ISSUES CONSOLE TABLE */}
+      <Card className={`border-none rounded-2xl shadow-lg overflow-hidden ${
+        darkMode ? 'bg-[#231F20] border border-[#000000]' : 'bg-white border border-slate-200'
+      }`}>
+        <CardContent className="p-6">
           <div className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -311,7 +310,7 @@ export default function ValidationTab({
                   placeholder="Search file issues..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-black border border-zinc-700 hover:border-zinc-500 focus:border-[#FC7603] rounded-lg text-white placeholder:text-zinc-500 outline-none transition-colors"
+                  className="w-full bg-[#000000] border border-[#FC7603] rounded-full h-8 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#FC7603] text-zinc-100 placeholder-zinc-500 transition-all shadow-sm"
                 />
               </div>
             </div>

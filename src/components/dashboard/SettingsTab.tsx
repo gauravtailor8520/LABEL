@@ -14,7 +14,8 @@ import {
   Star, 
   Copy, 
   Cpu, 
-  Sparkles 
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -145,6 +146,27 @@ export default function SettingsTab({
                 <GitFork className="w-4 h-4" />
                 Fork Repository
               </a>
+            </div>
+          </div>
+
+          {/* DEDICATED MIT LICENSE SECTION */}
+          <div className="p-4 rounded-xl bg-black/60 border border-zinc-900 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#FC7603]" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Open Source License
+                </h4>
+              </div>
+              <Badge className="bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-bold px-2.5 py-0.5">
+                MIT LICENSE
+              </Badge>
+            </div>
+            <p className="text-xs text-zinc-300 leading-relaxed font-mono text-[11px]">
+              Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the &quot;Software&quot;), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software.
+            </p>
+            <div className="text-[10px] text-zinc-500 font-mono pt-1">
+              Copyright &copy; {new Date().getFullYear()} LABEL Studio. Free for commercial and private use.
             </div>
           </div>
 

@@ -14,19 +14,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Label Studio - Professional Document & Invoice Labeling",
-  description: "Advanced YOLO annotation tool for invoices and PDF documents. Built with Next.js, Tailwind CSS, and optimized for high-speed labeling.",
-  keywords: ["Label Studio", "YOLO", "Annotation Tool", "Invoice Labeling", "Document AI", "Machine Learning Data"],
-  authors: [{ name: "Label Studio Team" }],
+  title: "LABEL - AI Dataset & YOLO Annotation Studio",
+  description: "Advanced high-contrast desktop studio for YOLO object detection, dataset management, and AI annotations.",
+  keywords: ["LABEL", "YOLO", "Annotation Studio", "Dataset Management", "Computer Vision AI"],
+  authors: [{ name: "LABEL Team" }],
   icons: {
-    icon: "https://labelstud.io/images/label-studio-logo.svg",
-  },
-  openGraph: {
-    title: "Label Studio",
-    description: "Professional Document & Invoice Labeling Tool",
-    url: "https://labelstud.io",
-    siteName: "Label Studio",
-    type: "website",
+    icon: [
+      { url: "/assets/favicon.ico" },
+      { url: "/assets/favicon.png", type: "image/png" },
+      { url: "/assets/logo.png", type: "image/png" },
+      { url: "/assets/logo.svg", type: "image/svg+xml" }
+    ],
+    shortcut: "/assets/favicon.png",
+    apple: "/assets/logo.png",
   },
 };
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import JSZip from 'jszip';
 
 // GET: List files or fetch specific file content
 export async function GET(request: NextRequest) {
@@ -16,7 +17,63 @@ export async function GET(request: NextRequest) {
 
     // Standardize path for Windows/Linux
     const normalizedRoot = path.normalize(rootPath);
+
+    // Resolve actual image and label directory names dynamically (support both plural and singular)
+    let actualImageDir = 'images';
+    let imageDirExists = false;
+    try {
+      await fs.access(path.join(normalizedRoot, 'images'));
+      imageDirExists = true;
+    } catch {
+      try {
+        await fs.access(path.join(normalizedRoot, 'image'));
+        actualImageDir = 'image';
+        imageDirExists = true;
+      } catch {}
+    }
+
+    let actualLabelDir = 'labels';
+    let labelDirExists = false;
+    try {
+      await fs.access(path.join(normalizedRoot, 'labels'));
+      labelDirExists = true;
+    } catch {
+      try {
+        await fs.access(path.join(normalizedRoot, 'label'));
+        actualLabelDir = 'label';
+        labelDirExists = true;
+      } catch {}
+    }
     
+    if (action === 'validate') {
+      try {
+        await fs.access(normalizedRoot);
+      } catch {
+        return NextResponse.json({ valid: false, dirNotFound: true, missing: [] });
+      }
+
+      // Check existence of classes.json strictly
+      const classesPath = path.join(normalizedRoot, 'classes.json');
+      let categoriesExist = false;
+      try {
+        await fs.access(classesPath);
+        categoriesExist = true;
+      } catch {
+        categoriesExist = false;
+      }
+
+      const missingComponents: string[] = [];
+      if (!categoriesExist) missingComponents.push('classes.json');
+      if (!imageDirExists) missingComponents.push('images/');
+      if (!labelDirExists) missingComponents.push('labels/');
+
+      return NextResponse.json({
+        valid: missingComponents.length === 0,
+        dirNotFound: false,
+        missing: missingComponents
+      });
+    }
+
     if (action === 'list') {
       try {
         await fs.access(normalizedRoot);
@@ -24,28 +81,56 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: `Root directory not found at: ${normalizedRoot}` }, { status: 404 });
       }
 
-      // 1. Read notes.json (Categories)
-      const notesPath = path.join(normalizedRoot, 'notes.json');
+      // Check existence of classes.json strictly
+      const classesPath = path.join(normalizedRoot, 'classes.json');
+      let categoriesExist = false;
+      try {
+        await fs.access(classesPath);
+        categoriesExist = true;
+      } catch {
+        categoriesExist = false;
+      }
+
+      const missingComponents: string[] = [];
+      if (!categoriesExist) missingComponents.push('classes.json');
+      if (!imageDirExists) missingComponents.push('images/');
+      if (!labelDirExists) missingComponents.push('labels/');
+
+      if (missingComponents.length > 0) {
+        let errorMsg = '';
+        if (missingComponents.length === 1) {
+          const item = missingComponents[0];
+          if (item === 'classes.json') {
+            errorMsg = 'The `classes.json` file was not found in the selected dataset path. Please create it before continuing.';
+          } else if (item === 'images/') {
+            errorMsg = 'The `images` directory was not found in the selected dataset path. Please create it before continuing.';
+          } else if (item === 'labels/') {
+            errorMsg = 'The `labels` directory was not found in the selected dataset path. Please create it before continuing.';
+          }
+        } else {
+          errorMsg = `The selected dataset is incomplete.\n\nMissing:\n${missingComponents.map(item => `* \`${item}\``).join('\n')}\n\nPlease create the missing items before creating the project.`;
+        }
+
+        return NextResponse.json({
+          error: errorMsg,
+          missing: missingComponents
+        }, { status: 400 });
+      }
+
+      // 1. Read classes.json (Categories)
       let categories: any[] = [];
       try {
-        const notesContent = await fs.readFile(notesPath, 'utf-8');
-        const notesJson = JSON.parse(notesContent);
-        categories = notesJson.categories || [];
+        const classesContent = await fs.readFile(classesPath, 'utf-8');
+        const classesJson = JSON.parse(classesContent);
+        categories = classesJson.categories || [];
       } catch (e) {
-        console.warn('notes.json not found or invalid');
+        console.warn('classes.json not found or invalid');
       }
       
-      // 2. Find and Read images folder (check image/ or images/)
-      let imageDirPath = path.join(normalizedRoot, 'image');
+      // 2. Find and Read images folder (check images/)
+      let imageDirPath = path.join(normalizedRoot, actualImageDir);
       const images: { name: string; path: string }[] = [];
       try {
-        try {
-          await fs.access(imageDirPath);
-        } catch {
-          imageDirPath = path.join(normalizedRoot, 'images');
-          await fs.access(imageDirPath);
-        }
-        
         const imageEntries = await fs.readdir(imageDirPath, { withFileTypes: true });
         for (const entry of imageEntries) {
           if (entry.isFile() && isImageFile(entry.name)) {
@@ -56,23 +141,16 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (e) {
-        console.warn('No image or images directory found');
+        console.warn('No images directory found');
       }
       
-      // 3. Find and Read labels folder (check label/ or labels/)
-      let labelDirPath = path.join(normalizedRoot, 'label');
-      const labelFiles: { name: string; path: string }[] = [];
+      // 3. Find and Read labels folder (check labels/)
+      let labelDirPath = path.join(normalizedRoot, actualLabelDir);
+      const labelFiles: { name: string; path: string; size: number }[] = [];
       try {
-        try {
-          await fs.access(labelDirPath);
-        } catch {
-          labelDirPath = path.join(normalizedRoot, 'labels');
-          await fs.access(labelDirPath);
-        }
-        
         const labelEntries = await fs.readdir(labelDirPath, { withFileTypes: true });
         for (const entry of labelEntries) {
-          if (entry.isFile() && entry.name.endsWith('.txt')) {
+          if (entry.isFile() && entry.name.endsWith('.txt') && entry.name.toLowerCase() !== 'classes.txt') {
             const filePath = path.join(labelDirPath, entry.name);
             let size = 0;
             try {
@@ -87,7 +165,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (e) {
-        console.warn('No label or labels directory found');
+        console.warn('No labels directory found');
       }
       
       if (images.length === 0) {
@@ -128,6 +206,63 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ labels: [] });
       }
     }
+
+    if (action === 'export') {
+      try {
+        await fs.access(normalizedRoot);
+      } catch {
+        return NextResponse.json({ error: `Root directory not found at: ${normalizedRoot}` }, { status: 404 });
+      }
+
+      const projectNameParam = searchParams.get('projectName') || 'LABEL-Project';
+      const cleanProjectName = projectNameParam.replace(/[\\/:*?"<>|]/g, '_').trim();
+      const zipFileName = `${cleanProjectName}-LABEL.zip`;
+
+      const zip = new JSZip();
+
+      // 1. Add classes.json if it exists
+      const classesPath = path.join(normalizedRoot, 'classes.json');
+      try {
+        await fs.access(classesPath);
+        const classesContent = await fs.readFile(classesPath);
+        zip.file('classes.json', classesContent);
+      } catch (e) {
+        console.warn('classes.json not found during export');
+      }
+
+      // 2. Add images directory if it exists
+      const imagesDirPath = path.join(normalizedRoot, actualImageDir);
+      try {
+        await fs.access(imagesDirPath);
+        const imagesFolder = zip.folder(actualImageDir);
+        if (imagesFolder) {
+          await addDirectoryToZip(imagesFolder, imagesDirPath);
+        }
+      } catch (e) {
+        console.warn('images directory not found during export');
+      }
+
+      // 3. Add labels directory if it exists
+      const labelsDirPath = path.join(normalizedRoot, actualLabelDir);
+      try {
+        await fs.access(labelsDirPath);
+        const labelsFolder = zip.folder(actualLabelDir);
+        if (labelsFolder) {
+          await addDirectoryToZip(labelsFolder, labelsDirPath);
+        }
+      } catch (e) {
+        console.warn('labels directory not found during export');
+      }
+
+      const archive = await zip.generateAsync({ type: 'nodebuffer' });
+
+      return new NextResponse(archive, {
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="${zipFileName}"`,
+        },
+      });
+    }
     
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
@@ -149,9 +284,9 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedRoot = path.normalize(rootPath);
-    const notesPath = path.join(normalizedRoot, 'notes.json');
+    const classesPath = path.join(normalizedRoot, 'classes.json');
     
-    await fs.writeFile(notesPath, JSON.stringify({ categories }, null, 2));
+    await fs.writeFile(classesPath, JSON.stringify({ categories }, null, 2));
     
     return NextResponse.json({ success: true, message: 'Settings saved successfully' });
   } catch (error: any) {
@@ -178,12 +313,31 @@ export async function DELETE(request: NextRequest) {
     if (imagePath) {
       try {
         await fs.unlink(imagePath);
+
+        // Automatically delete corresponding label .txt file on disk
+        if (!labelPath) {
+          const parsed = path.parse(imagePath);
+          // Check same directory .txt
+          const sameDirLabel = path.join(parsed.dir, `${parsed.name}.txt`);
+          try {
+            await fs.unlink(sameDirLabel);
+          } catch (e) { }
+
+          // Check parallel /labels directory .txt (e.g. dataset/images/01.jpg -> dataset/labels/01.txt)
+          if (parsed.dir.toLowerCase().includes('images')) {
+            const labelsDir = parsed.dir.replace(/images$/i, 'labels').replace(/images([/\\])/i, 'labels$1');
+            const parallelLabel = path.join(labelsDir, `${parsed.name}.txt`);
+            try {
+              await fs.unlink(parallelLabel);
+            } catch (e) { }
+          }
+        }
       } catch (e: any) {
         console.warn(`Could not delete image file at ${imagePath}:`, e.message);
       }
     }
 
-    // 2. Delete label file if path is specified
+    // 2. Delete label file if path is explicitly specified
     if (labelPath) {
       try {
         await fs.unlink(labelPath);
@@ -203,8 +357,8 @@ export async function DELETE(request: NextRequest) {
 }
 
 function isImageFile(fileName: string): boolean {
-  const ext = fileName.toLowerCase().split('.').pop() || '';
-  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
+  const ext = fileName.trim().toLowerCase().split('.').pop()?.trim() || '';
+  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'jfif', 'tiff', 'tif', 'heic', 'heif'].includes(ext);
 }
 
 function parseYoloLabels(content: string): any[] {
@@ -226,5 +380,28 @@ function parseYoloLabels(content: string): any[] {
   }
   
   return labels;
+}
+
+async function addDirectoryToZip(zipFolder: JSZip, sourceDir: string) {
+  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const sourcePath = path.join(sourceDir, entry.name);
+
+    if (entry.isDirectory()) {
+      const childFolder = zipFolder.folder(entry.name);
+
+      if (childFolder) {
+        await addDirectoryToZip(childFolder, sourcePath);
+      }
+
+      continue;
+    }
+
+    if (entry.isFile()) {
+      const fileBuffer = await fs.readFile(sourcePath);
+      zipFolder.file(entry.name, fileBuffer);
+    }
+  }
 }
 

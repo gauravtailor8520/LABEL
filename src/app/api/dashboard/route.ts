@@ -4,8 +4,8 @@ import path from 'path';
 
 // Get MIME type or check if image
 function isImageFile(fileName: string): boolean {
-  const ext = fileName.toLowerCase().split('.').pop() || '';
-  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
+  const ext = fileName.trim().toLowerCase().split('.').pop()?.trim() || '';
+  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'jfif', 'tiff', 'tif', 'heic', 'heif'].includes(ext);
 }
 
 // Simple image size reader for JPEG/PNG
@@ -59,26 +59,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Root directory not found at: ${normalizedRoot}` }, { status: 404 });
     }
 
-    // 1. Read categories from notes.json
-    const notesPath = path.join(normalizedRoot, 'notes.json');
+    // 1. Read categories strictly from classes.json
+    const classesPath = path.join(normalizedRoot, 'classes.json');
     let categories: { id: number; name: string; color?: string }[] = [];
     try {
-      const notesContent = await fs.readFile(notesPath, 'utf-8');
-      const notesJson = JSON.parse(notesContent);
-      categories = notesJson.categories || [];
+      const classesContent = await fs.readFile(classesPath, 'utf-8');
+      const classesJson = JSON.parse(classesContent);
+      categories = classesJson.categories || [];
     } catch (e) {
-      console.warn('notes.json not found in dashboard parser');
+      console.warn('classes.json not found in dashboard parser');
     }
 
-    // 2. Scan images directory (image/ or images/)
-    let imageDirPath = path.join(normalizedRoot, 'image');
+    // 2. Scan images directory (support both plural and singular)
+    let actualImageDir = 'images';
     let hasImageDir = true;
+    let imageDirPath = path.join(normalizedRoot, 'images');
     try {
       await fs.access(imageDirPath);
     } catch {
       try {
-        imageDirPath = path.join(normalizedRoot, 'images');
+        imageDirPath = path.join(normalizedRoot, 'image');
         await fs.access(imageDirPath);
+        actualImageDir = 'image';
       } catch {
         hasImageDir = false;
       }
@@ -103,15 +105,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. Scan labels directory (label/ or labels/)
-    let labelDirPath = path.join(normalizedRoot, 'label');
+    // 3. Scan labels directory (support both plural and singular)
+    let actualLabelDir = 'labels';
     let hasLabelDir = true;
+    let labelDirPath = path.join(normalizedRoot, 'labels');
     try {
       await fs.access(labelDirPath);
     } catch {
       try {
-        labelDirPath = path.join(normalizedRoot, 'labels');
+        labelDirPath = path.join(normalizedRoot, 'label');
         await fs.access(labelDirPath);
+        actualLabelDir = 'label';
       } catch {
         hasLabelDir = false;
       }
@@ -121,7 +125,7 @@ export async function GET(request: NextRequest) {
     if (hasLabelDir) {
       const labelEntries = await fs.readdir(labelDirPath, { withFileTypes: true });
       for (const entry of labelEntries) {
-        if (entry.isFile() && entry.name.endsWith('.txt')) {
+        if (entry.isFile() && entry.name.endsWith('.txt') && entry.name.toLowerCase() !== 'classes.txt') {
           labelFiles.push({
             name: entry.name,
             path: path.join(labelDirPath, entry.name)
@@ -159,12 +163,7 @@ export async function GET(request: NextRequest) {
     const classCounts: Record<number, number> = {};
     const boxWidths: number[] = [];
     const boxHeights: number[] = [];
-    const heatmapPoints: { x: number; y: number; val: number }[] = [];
     const extraLabels: any[] = [];
-    
-    // Spatial grid for heatmap (10x10)
-    const gridSize = 10;
-    const grid: number[][] = Array(gridSize).fill(0).map(() => Array(gridSize).fill(0));
 
     let emptyImages = 0;
     let corruptedImages = 0;
@@ -360,9 +359,7 @@ export async function GET(request: NextRequest) {
               h
             });
 
-            const gridX = Math.min(gridSize - 1, Math.max(0, Math.floor(x * gridSize)));
-            const gridY = Math.min(gridSize - 1, Math.max(0, Math.floor(y * gridSize)));
-            grid[gridY][gridX]++;
+
           } else if (line.trim().length > 0) {
             duplicateLabelsCount++;
           }
@@ -426,18 +423,7 @@ export async function GET(request: NextRequest) {
     const tinyObjects = boxWidths.filter(w => w < 0.03).length;
     const largeObjects = boxWidths.filter(w => w > 0.5).length;
 
-    let maxGridVal = 0;
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
-        if (grid[r][c] > maxGridVal) maxGridVal = grid[r][c];
-      }
-    }
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
-        const val = maxGridVal > 0 ? Math.round((grid[r][c] / maxGridVal) * 100) : 0;
-        heatmapPoints.push({ x: c * 10 + 5, y: r * 10 + 5, val });
-      }
-    }
+
 
     const resolutionAnalysis = Object.keys(resolutionCounts).map(res => ({
       resolution: res,
@@ -445,7 +431,7 @@ export async function GET(request: NextRequest) {
     }));
 
     const densityList = Object.keys(objectsPerImageCounts).map(num => ({
-      objects: `${num} Object${parseInt(num) !== 1 ? 's' : ''}`,
+      objects: `${num} Class${parseInt(num) !== 1 ? 'es' : ''}`,
       count: objectsPerImageCounts[parseInt(num)]
     })).sort((a, b) => parseInt(a.objects) - parseInt(b.objects));
 
@@ -569,9 +555,9 @@ export async function GET(request: NextRequest) {
         widthHistogram,
         heightHistogram
       },
-      heatmap: heatmapPoints,
+
       resolutionAnalysis,
-      annotationDensity: densityList.length > 0 ? densityList : [{ objects: "0 Objects", count: totalImages }],
+      annotationDensity: densityList.length > 0 ? densityList : [{ objects: "0 Classes", count: totalImages }],
       split: [
         { name: "Train", value: 80, count: trainImages },
         { name: "Validation", value: 10, count: valImages },
@@ -685,7 +671,7 @@ function getEmptyDatasetState(folderName: string) {
       widthHistogram: [],
       heightHistogram: []
     },
-    heatmap: Array(100).fill(0).map((_, i) => ({ x: (i % 10) * 10 + 5, y: Math.floor(i / 10) * 10 + 5, val: 0 })),
+
     resolutionAnalysis: [],
     annotationDensity: [],
     split: [

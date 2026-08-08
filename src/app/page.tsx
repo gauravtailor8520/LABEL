@@ -29,6 +29,12 @@ import {
   Palette,
   X,
   RotateCcw,
+  FolderGit2,
+  FolderPlus,
+  History,
+  Sparkles,
+  Pencil,
+  ShieldAlert,
 } from 'lucide-react';
 import { useLabelStore } from '@/store/labelStore';
 import { Category, YoloLabel, getCategoryColor, CATEGORY_COLORS } from '@/lib/types';
@@ -75,6 +81,76 @@ export default function YoloLabelEditor() {
   const [currentImageIndex, setCurrentImageIndex] = useState(-1);
   const [zoom, setZoom] = useState(1);
   const [zoomInput, setZoomInput] = useState('100%');
+  const [missingStructure, setMissingStructure] = useState<string[]>([]);
+
+  // Poll API periodically to verify dataset structure health
+  useEffect(() => {
+    if (!rootPath) {
+      setMissingStructure([]);
+      return;
+    }
+
+    const checkStructure = async () => {
+      try {
+        const response = await fetch(`/api/files?action=validate&path=${encodeURIComponent(rootPath)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (!data.valid) {
+            setMissingStructure(data.missing || ['unknown item']);
+          } else {
+            setMissingStructure([]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to validate project structure:', err);
+      }
+    };
+
+    // Run check immediately
+    checkStructure();
+
+    // Set interval to poll every 5 seconds
+    const interval = setInterval(checkStructure, 5000);
+    return () => clearInterval(interval);
+  }, [rootPath]);
+
+  // Suppress third-party chrome extension errors (e.g. MetaMask's inpage.js) from triggering the Next.js dev overlay
+  useEffect(() => {
+    const handleExtensionErrors = (event: ErrorEvent) => {
+      const isExtension =
+        event.filename?.includes('chrome-extension://') ||
+        event.error?.stack?.includes('chrome-extension://') ||
+        event.message?.includes('MetaMask') ||
+        event.message?.includes('nkbihfbeogaeaoehlefnkodbefgpgknn');
+
+      if (isExtension) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    const handleExtensionRejections = (event: PromiseRejectionEvent) => {
+      const reasonStack = event.reason?.stack || '';
+      const reasonMessage = event.reason?.message || '';
+      const isExtension =
+        reasonStack.includes('chrome-extension://') ||
+        reasonMessage.includes('MetaMask') ||
+        reasonMessage.includes('nkbihfbeogaeaoehlefnkodbefgpgknn');
+
+      if (isExtension) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    window.addEventListener('error', handleExtensionErrors, true);
+    window.addEventListener('unhandledrejection', handleExtensionRejections, true);
+
+    return () => {
+      window.removeEventListener('error', handleExtensionErrors, true);
+      window.removeEventListener('unhandledrejection', handleExtensionRejections, true);
+    };
+  }, []);
 
   useEffect(() => {
     setZoomInput(`${Math.round(zoom * 100)}%`);
@@ -102,10 +178,92 @@ export default function YoloLabelEditor() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloadingSample, setIsDownloadingSample] = useState(false);
   const [rightSearchQuery, setRightSearchQuery] = useState('');
-  const [rightFilter, setRightFilter] = useState<'all' | 'labeled' | 'unlabeled'>('all');
+  const [rightFilter, setRightFilter] = useState<'all' | 'labeled' | 'unlabeled' | 'empty'>('all');
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [isDeleteSelectOpen, setIsDeleteSelectOpen] = useState(false);
+
+  // Desktop Persistent Project Storage States
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [lastActiveProjectId, setLastActiveProjectId] = useState<string | null>(null);
+  const [currentProjectName, setCurrentProjectName] = useState<string>('');
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [projectTab, setProjectTab] = useState<'continue' | 'select' | 'create'>('create');
+  const [selectedModalProjectId, setSelectedModalProjectId] = useState<string | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingPathInput, setEditingPathInput] = useState<string>('');
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectPath, setNewProjectPath] = useState(rootPath || '');
+  const [hasInitializedProjects, setHasInitializedProjects] = useState(false);
+  const [headerIssueCount, setHeaderIssueCount] = useState<number>(0);
+  const [newPathValidation, setNewPathValidation] = useState<{ valid: boolean; missing: string[]; dirNotFound: boolean; checked: boolean } | null>(null);
+  const [tempPathInput, setTempPathInput] = useState(rootPath || '');
+
+  useEffect(() => {
+    if (rootPath) {
+      setTempPathInput(rootPath);
+    }
+  }, [rootPath]);
+
+  // Real-time dynamic path validation during project creation
+  useEffect(() => {
+    if (!newProjectPath.trim()) {
+      setNewPathValidation(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/files?action=validate&path=${encodeURIComponent(newProjectPath.trim())}`);
+        const data = await response.json();
+        setNewPathValidation({
+          valid: data.valid,
+          missing: data.missing || [],
+          dirNotFound: data.dirNotFound || false,
+          checked: true
+        });
+      } catch (err) {
+        setNewPathValidation({
+          valid: false,
+          missing: [],
+          dirNotFound: true,
+          checked: true
+        });
+      }
+    }, 600); // 600ms debounce
+
+    return () => clearTimeout(timer);
+  }, [newProjectPath]);
+
+
+
+  useEffect(() => {
+    if (!rootPath) return;
+    fetch(`/api/dashboard?path=${encodeURIComponent(rootPath)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data || data.error) return;
+        const total = (
+          (data.validation?.duplicateImageFiles?.length || 0) +
+          (data.validation?.duplicateLabelFiles?.length || 0) +
+          (data.validation?.orphanImages?.length || 0) +
+          (data.orphanedLabels?.length || 0) +
+          (data.extraLabels?.length || 0)
+        );
+        setHeaderIssueCount(total);
+      })
+      .catch(() => { });
+  }, [rootPath, images.length, labelFiles.length]);
+
+  const localIssueCount = useMemo(() => {
+    const imageBaseNames = new Set(images.map(i => i.name.replace(/\.[^/.]+$/, '')));
+    const labelBaseNames = new Set(labelFiles.map(l => l.name.replace(/\.[^/.]+$/, '')));
+    const unlinkedLabels = labelFiles.filter(lbl => !imageBaseNames.has(lbl.name.replace(/\.[^/.]+$/, ''))).length;
+    const unlinkedImages = images.filter(img => !labelBaseNames.has(img.name.replace(/\.[^/.]+$/, ''))).length;
+    return unlinkedLabels + unlinkedImages;
+  }, [images, labelFiles]);
+
+  const effectiveIssueCount = Math.max(headerIssueCount, localIssueCount);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -162,16 +320,12 @@ export default function YoloLabelEditor() {
     };
   }, [imageMeta]);
 
-  // Handle directory load
-  const handleLoadDirectory = async () => {
-    if (!localPath) {
-      toast.error('Please enter a directory path');
-      return;
-    }
-
+  // Reusable load directory path function
+  const handleLoadDirectoryPath = async (targetPath: string) => {
+    if (!targetPath) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/files?action=list&path=${encodeURIComponent(localPath)}`);
+      const response = await fetch(`/api/files?action=list&path=${encodeURIComponent(targetPath)}`);
       const data = await response.json();
 
       if (data.error) throw new Error(data.error);
@@ -185,15 +339,257 @@ export default function YoloLabelEditor() {
         setShowUpload(false);
         load_image_(0, data.images, data.labelFiles);
       } else {
-        toast.info('No images found in the /image folder');
+        toast.info('No images found in dataset /image directory');
       }
 
-      toast.success(`Successfully loaded directory: ${data.rootPath}`);
+      toast.success(`Successfully loaded project dataset: ${data.rootPath}`);
     } catch (error: any) {
-      toast.error(`Load failed: ${error.message}`);
+      const isStructureIncomplete = error.message.includes('Required project structure is incomplete');
+      if (isStructureIncomplete) {
+        toast.error(
+          <div className="flex flex-col gap-1 text-xs">
+            <span className="font-bold text-red-400">Load Failed: Dataset Structure Incomplete</span>
+            <span className="text-zinc-300">{error.message}</span>
+            <button
+              onClick={() => handleDownloadSampleDataset()}
+              className="mt-1.5 text-left text-[#FC7603] font-bold hover:underline cursor-pointer"
+            >
+              Click here to download sample dataset format
+            </button>
+          </div>,
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(`Load failed: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Fetch projects from persistent system storage on startup
+  const fetchProjects = useCallback(async (autoSelectLast = false, shouldOpenModal = false) => {
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        setProjectsList(data.projects || []);
+        setLastActiveProjectId(data.lastActiveProjectId);
+
+        if (data.projects && data.projects.length > 0) {
+          setProjectTab('continue');
+          if (data.lastActiveProjectId) {
+            setSelectedModalProjectId(data.lastActiveProjectId);
+            const lastProj = data.projects.find((p: any) => p.id === data.lastActiveProjectId);
+            if (lastProj && lastProj.path) {
+              setLocalPath(lastProj.path);
+              setNewProjectPath(lastProj.path);
+              setCurrentProjectName(lastProj.name);
+            }
+          }
+          if (shouldOpenModal) {
+            setShowProjectModal(true);
+          }
+        } else {
+          setProjectTab('create');
+          if (shouldOpenModal) {
+            setShowProjectModal(true);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load persistent project storage', e);
+      if (shouldOpenModal) {
+        setShowProjectModal(true);
+      }
+    } finally {
+      setHasInitializedProjects(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasInitializedProjects) {
+      fetchProjects(false, true);
+    }
+  }, [fetchProjects, hasInitializedProjects]);
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim() || !newProjectPath.trim()) {
+      toast.error('Please enter both Project Name and Dataset Path');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          name: newProjectName.trim(),
+          path: newProjectPath.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to create project');
+        return;
+      }
+
+      toast.success(`Project "${data.project.name}" created!`);
+      setCurrentProjectName(data.project.name);
+      setShowProjectModal(false);
+      setShowUpload(false);
+      setLocalPath(data.project.path);
+      handleLoadDirectoryPath(data.project.path);
+      fetchProjects(false, false);
+    } catch (e: any) {
+      toast.error('Error creating project: ' + e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectProject = async (proj: any) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'select',
+          projectId: proj.id,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success(`Switched to project "${proj.name}"`);
+        setCurrentProjectName(proj.name);
+        setShowProjectModal(false);
+        setShowUpload(false);
+        setLocalPath(proj.path);
+        handleLoadDirectoryPath(proj.path);
+        fetchProjects(false, false);
+      }
+    } catch (e: any) {
+      toast.error('Failed to select project: ' + e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteProjectHistory = async (projId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/projects?id=${projId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Project removed from history');
+        fetchProjects(false, true);
+      }
+    } catch (e) {
+      console.error('Failed to delete project history', e);
+    }
+  };
+
+  const handleUpdateProjectPath = async (projId: string) => {
+    if (!editingPathInput.trim()) {
+      toast.error('Please enter a valid directory path');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_path',
+          projectId: projId,
+          path: editingPathInput.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to update project path');
+        return;
+      }
+
+      toast.success('Project directory path updated!');
+      setEditingProjectId(null);
+
+      if (projId === lastActiveProjectId) {
+        setLocalPath(data.project.path);
+        handleLoadDirectoryPath(data.project.path);
+      }
+
+      fetchProjects(false, true);
+    } catch (e: any) {
+      toast.error('Error updating project path: ' + e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveUpdatedPath = async () => {
+    if (!tempPathInput.trim()) {
+      toast.error('Path cannot be empty');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const projId = lastActiveProjectId || (projectsList.length > 0 ? projectsList[0].id : null);
+      if (projId) {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_path',
+            projectId: projId,
+            path: tempPathInput.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to update project path');
+          return;
+        }
+        setLocalPath(data.project.path);
+        setRootPath(data.project.path);
+        handleLoadDirectoryPath(data.project.path);
+        toast.success('Project directory path updated successfully!');
+        
+        const checkRes = await fetch(`/api/files?action=validate&path=${encodeURIComponent(data.project.path)}`);
+        if (checkRes.ok) {
+          const valData = await checkRes.json();
+          if (valData.valid) {
+            setMissingStructure([]);
+          } else {
+            setMissingStructure(valData.missing || []);
+          }
+        }
+      } else {
+        setLocalPath(tempPathInput.trim());
+        setRootPath(tempPathInput.trim());
+        handleLoadDirectoryPath(tempPathInput.trim());
+        toast.success('Workspace directory path loaded!');
+      }
+      fetchProjects(false, false);
+    } catch (e: any) {
+      toast.error('Error updating path: ' + e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle directory load
+  const handleLoadDirectory = async () => {
+    if (!localPath) {
+      toast.error('Please enter a directory path');
+      return;
+    }
+    await handleLoadDirectoryPath(localPath);
   };
 
   const handleRefreshDirectory = async () => {
@@ -218,7 +614,24 @@ export default function YoloLabelEditor() {
 
       toast.success('Refreshed dataset files list');
     } catch (error: any) {
-      toast.error(`Refresh failed: ${error.message}`);
+      const isStructureIncomplete = error.message.includes('Required project structure is incomplete');
+      if (isStructureIncomplete) {
+        toast.error(
+          <div className="flex flex-col gap-1 text-xs">
+            <span className="font-bold text-red-400">Refresh Failed: Dataset Structure Incomplete</span>
+            <span className="text-zinc-300">{error.message}</span>
+            <button
+              onClick={() => handleDownloadSampleDataset()}
+              className="mt-1.5 text-left text-[#FC7603] font-bold hover:underline cursor-pointer"
+            >
+              Click here to download sample dataset format
+            </button>
+          </div>,
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(`Refresh failed: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -612,9 +1025,7 @@ export default function YoloLabelEditor() {
       toast.success(`Successfully deleted image ${currentImage.name}`);
 
       const updatedImages = images.filter((_, idx) => idx !== currentImageIndex);
-      const updatedLabels = matchingLabel
-        ? labelFiles.filter(lf => lf.path !== matchingLabel.path)
-        : labelFiles;
+      const updatedLabels = labelFiles.filter(lf => lf.name.replace(/\.[^/.]+$/, '') !== baseName);
 
       setImages(updatedImages);
       setLabelFiles(updatedLabels);
@@ -995,7 +1406,7 @@ export default function YoloLabelEditor() {
 
       if (rightFilter === 'labeled') return isLabeled;
       if (rightFilter === 'empty') return isEmptyFile;
-      if (rightFilter === 'nofile' || rightFilter === 'unlabeled') return hasNoFile;
+      if (rightFilter === 'unlabeled') return hasNoFile;
       return true;
     });
   }, [images, labelFileMap, rightFilter, rightSearchQuery]);
@@ -1004,6 +1415,7 @@ export default function YoloLabelEditor() {
     return (
       <YoloDashboard
         rootPath={rootPath}
+        projectName={currentProjectName}
         categories={categories}
         images={images}
         labelFiles={labelFiles}
@@ -1014,10 +1426,147 @@ export default function YoloLabelEditor() {
 
   return (
     <div className="h-screen flex flex-col bg-[#000000] text-white overflow-hidden">
+      {/* Full screen overlay warning for missing components */}
+      {missingStructure.length > 0 && (
+        <div className="fixed inset-0 bg-[#000000]/95 backdrop-blur-md z-[9999] flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-4xl w-full bg-[#1c191a] border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-zinc-800/80 my-auto">
+            
+            {/* Left Column: Error Details & Controls */}
+            <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-[#C31230]/20 flex items-center justify-center animate-pulse">
+                <ShieldAlert className="w-6 h-6 text-[#C31230]" />
+              </div>
+              
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-white tracking-tight">Dataset Component Missing!</h3>
+                <p className="text-xs text-zinc-400">
+                  A required file or folder is missing from your active project path.
+                </p>
+              </div>
+
+              {/* Missing Items */}
+              <div className="w-full bg-[#000000]/60 border border-zinc-900 rounded-xl p-3.5 text-left space-y-2 font-mono text-[11px] shadow-inner">
+                <span className="text-zinc-500 font-sans font-bold uppercase tracking-wider text-[9px]">Missing item(s):</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {missingStructure.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-[#FC8181] font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C31230]" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Form to Update Path */}
+              <div className="w-full text-left space-y-1.5 bg-[#000000]/30 border border-zinc-900/60 p-3.5 rounded-xl">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Update Directory Path</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tempPathInput}
+                    onChange={(e) => setTempPathInput(e.target.value)}
+                    className="flex-1 bg-black/60 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:border-[#FC7603] font-mono truncate"
+                    placeholder="Enter correct directory path..."
+                  />
+                  <Button
+                    onClick={handleSaveUpdatedPath}
+                    disabled={isLoading}
+                    className="bg-[#FC7603] hover:bg-[#e56a02] text-white font-bold text-xs h-8 px-4 rounded-lg shadow shadow-[#FC7603]/10 shrink-0 border-none transition-colors"
+                  >
+                    Update
+                  </Button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="w-full pt-1 flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleDownloadSampleDataset}
+                    disabled={isDownloadingSample}
+                    className="border-zinc-800 bg-[#000000] hover:bg-zinc-900 text-zinc-200 font-bold text-xs h-9 rounded-lg transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5 text-[#FC7603]" />
+                    Sample ZIP
+                  </Button>
+                  <Button
+                    onClick={handleRefreshDirectory}
+                    className="bg-[#FC7603] hover:bg-[#e56a02] text-white font-bold text-xs h-9 rounded-lg shadow-md shadow-[#FC7603]/20 border-none transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin-slow" />
+                    Retry Check
+                  </Button>
+                </div>
+                <Button
+                  onClick={() => {
+                    setRootPath('');
+                    setMissingStructure([]);
+                    reset();
+                    setShowProjectModal(true);
+                    setProjectTab('create');
+                  }}
+                  className="w-full bg-[#FC7603]/10 hover:bg-[#FC7603] border border-[#FC7603]/30 hover:border-[#FC7603] text-[#FC7603] hover:text-white font-bold text-xs h-9 rounded-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg hover:shadow-[#FC7603]/10 flex items-center justify-center gap-1.5"
+                >
+                  <FolderPlus className="w-3.5 h-3.5 mr-1.5" />
+                  Start a New Project
+                </Button>
+              </div>
+            </div>
+
+            {/* Right Column: Help Guides (Structure & JSON format) */}
+            <div className="flex-1 p-6 md:p-8 space-y-5 bg-[#171415]/95 flex flex-col justify-center">
+              <div>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-3.5 bg-[#FC7603] rounded-sm" />
+                  Dataset Reference Guide
+                </h4>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  Ensure your local directory structure and classes.json match the formats below.
+                </p>
+              </div>
+
+              {/* Sample Directory Structure */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Required Directory Structure:</span>
+                <pre className="bg-black/80 border border-zinc-900 rounded-lg p-3.5 font-mono text-[10px] text-zinc-300 leading-relaxed overflow-x-auto shadow-inner select-all">
+{`my-dataset-folder/
+├── classes.json        <-- Class mappings
+├── images/             <-- Folder for image files (.jpg, .png, etc.)
+│   ├── img001.jpg
+│   └── img002.jpg
+└── labels/             <-- Folder for YOLO .txt bounding boxes
+    ├── img001.txt
+    └── img002.txt`}
+                </pre>
+              </div>
+
+              {/* JSON Format */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">classes.json File Format:</span>
+                <pre className="bg-black/80 border border-zinc-900 rounded-lg p-3.5 font-mono text-[10px] text-zinc-300 leading-relaxed overflow-x-auto shadow-inner select-all">
+{`{
+  "categories": [
+    { "id": 0, "name": "logo", "color": "#FF6B6B" },
+    { "id": 1, "name": "signature", "color": "#4ECDC4" },
+    { "id": 2, "name": "stamp", "color": "#FFEAA7" }
+  ]
+}`}
+                </pre>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="h-14 border-b border-[#000000] bg-[#231F20] flex items-center justify-between px-4 shrink-0 z-10">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-extrabold text-[#FC7603] tracking-tight">Label Studio</h1>
+        <div className="flex items-center gap-2.5">
+          <img src="/assets/logo.svg" alt="LABEL Logo" className="w-7 h-7 rounded-none" />
+          <h1 className="text-lg font-black tracking-wider flex items-center gap-2">
+            <span className="text-[#FC7603]">LABEL</span>
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-widest bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700">STUDIO</span>
+          </h1>
         </div>
 
         <div className="flex items-center gap-2">          {currentImageName && (
@@ -1172,32 +1721,34 @@ export default function YoloLabelEditor() {
             size="sm"
             onClick={handleDeleteCurrentImage}
             disabled={currentImageIndex < 0 || images.length === 0}
-            className="bg-[#C31230] hover:bg-[#a10e27] border border-[#C31230]/50 text-white shadow-md shadow-[#C31230]/30 font-bold transition-all disabled:opacity-50"
+            className="bg-[#000000] hover:bg-[#C31230]/10 border border-[#C31230]/20 hover:border-[#C31230]/40 text-[#c87a82] hover:text-[#C31230] font-bold transition-all disabled:opacity-30 shadow-none"
           >
             <Trash2 className="w-4 h-4 mr-1" />
             Delete Image
           </Button>
 
-          {/* Upload */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowUpload(!showUpload)}
-            className="bg-[#383436] hover:bg-[#454043] border border-zinc-300/80 rounded-xl h-9 px-3 gap-1.5 text-white font-medium text-xs transition-all shadow-sm"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-[#FC7603]" />
-            <span>Open Files</span>
-          </Button>
+
+
+
 
           {/* Dashboard Button */}
           <Button
-            variant="outline"
+            variant="default"
             size="sm"
             onClick={() => setShowDashboard(true)}
-            className="bg-[#383436] hover:bg-[#454043] border border-zinc-300/80 rounded-xl h-9 px-3 gap-1.5 text-white font-medium text-xs transition-all shadow-sm"
+            className="bg-[#FC7603] hover:bg-[#e56a02] border border-[#FC7603]/50 text-white shadow-md shadow-[#FC7603]/30 font-bold transition-all relative flex items-center gap-1.5"
           >
-            <LayoutDashboard className="w-3.5 h-3.5 text-[#FC7603]" />
-            <span>YOLO Dashboard</span>
+            <LayoutDashboard className="w-4 h-4" />
+            <span>LABEL Dashboard</span>
+            {effectiveIssueCount > 0 ? (
+              <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#C31230] text-white text-[10px] font-black flex items-center justify-center border border-white/30 shadow-sm animate-pulse">
+                {effectiveIssueCount}
+              </span>
+            ) : (
+              <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#004526] text-emerald-200 text-[10px] font-extrabold flex items-center justify-center border border-white/20 shadow-sm">
+                0
+              </span>
+            )}
           </Button>
         </div>
       </header>
@@ -1205,8 +1756,31 @@ export default function YoloLabelEditor() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Labels */}
-        <aside className={`bg-[#231F20] border-r border-[#000000] flex flex-col shrink-0 transition-all duration-300 relative ${isLeftSidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
-          <div className="p-3 border-b border-[#000000] flex flex-col gap-2">
+        <aside className={`bg-[#231F20] border-r border-[#000000] flex flex-col shrink-0 transition-all duration-300 relative h-full min-h-0 ${isLeftSidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
+          {/* Project Management Section */}
+          <div className="p-3 border-b border-[#000000] bg-[#1a1718] flex flex-col gap-2 shrink-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Project Workspace</span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowProjectModal(true)}
+                className="bg-[#FC7603] hover:bg-white hover:text-black text-white border-none rounded-lg h-7 px-2.5 gap-1 text-[11px] font-bold shadow transition-all flex items-center"
+                title="Switch or manage projects"
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                <span>Manage Projects</span>
+              </Button>
+            </div>
+
+            <div className="bg-[#000000]/60 border border-zinc-800 rounded-lg p-2 flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4 text-[#FC7603] shrink-0" />
+              <span className="text-xs font-bold text-white truncate flex-1">
+                {currentProjectName || 'No Project Selected'}
+              </span>
+            </div>
+          </div>
+          <div className="p-3 border-b border-[#000000] flex flex-col gap-2 shrink-0">
             <div className="flex items-center justify-between gap-1.5">
               <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Classes</h2>
               <div className="flex items-center gap-1.5">
@@ -1246,10 +1820,10 @@ export default function YoloLabelEditor() {
             </div>
 
             {isDeleteSelectOpen && (
-              <div className="flex items-center gap-2 p-2 bg-[#000000]/80 rounded-md border border-red-900/50 text-xs">
-                <span className="text-[11px] text-zinc-400 shrink-0">Class:</span>
+              <div className="flex items-center gap-2 p-2 bg-[#1c191a] rounded-lg border border-red-500/40 text-xs shadow-md">
+                <span className="text-[11px] font-bold text-red-400 shrink-0 uppercase tracking-wider">Select:</span>
                 <select
-                  className="flex-1 bg-[#231F20] text-zinc-200 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-red-500"
+                  className="flex-1 bg-[#000000]/80 text-zinc-100 border border-zinc-700 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-red-500 transition-colors"
                   defaultValue=""
                   onChange={(e) => {
                     const val = e.target.value;
@@ -1268,16 +1842,10 @@ export default function YoloLabelEditor() {
                     </option>
                   ))}
                 </select>
-                <button
-                  onClick={() => setIsDeleteSelectOpen(false)}
-                  className="text-zinc-500 hover:text-zinc-300 text-xs px-1"
-                >
-                  Cancel
-                </button>
               </div>
             )}
           </div>
-          <div className="p-3 border-b border-[#000000]">
+          <div className="p-3 border-b border-[#000000] max-h-36 overflow-y-auto min-h-0 shrink-0">
             <div className="flex flex-wrap gap-1.5">
               {categories.map((cat) => (
                 <div key={cat.id} className="relative flex items-center group">
@@ -1316,8 +1884,8 @@ export default function YoloLabelEditor() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="p-3 border-b border-[#000000] flex items-center justify-between">
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <div className="p-3 border-b border-[#000000] flex items-center justify-between shrink-0">
               <h2 className="text-sm font-semibold">Labels ({labels.filter(l => l.id !== 'temp-new').length})</h2>
               {selectedLabelIds.length > 0 && (
                 <Button
@@ -1336,52 +1904,50 @@ export default function YoloLabelEditor() {
               )}
             </div>
 
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {labels.filter(l => l.id !== 'temp-new').map((label) => {
-                  const category = categories.find(c => c.id === label.classId);
-                  const color = getCategoryColor(label.classId, categories);
-                  const isSelected = selectedLabelIds.includes(label.id);
+            <div className="flex-1 overflow-y-auto min-h-0 p-2 space-y-1">
+              {labels.filter(l => l.id !== 'temp-new').map((label) => {
+                const category = categories.find(c => c.id === label.classId);
+                const color = getCategoryColor(label.classId, categories);
+                const isSelected = selectedLabelIds.includes(label.id);
 
-                  return (
-                    <div
-                      key={label.id}
-                      className={`p-2 rounded cursor-pointer transition-colors ${isSelected
-                        ? 'bg-[#FC7603]/10 border border-[#FC7603]/50 text-[#FC7603] font-semibold'
-                        : 'bg-[#000000]/40 border border-zinc-900 hover:bg-[#000000]/60 text-zinc-350'
-                        }`}
-                      onClick={(e) => handleLabelSelect(label.id, e.ctrlKey || e.metaKey)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="text-sm font-medium flex-1">
-                          {category?.name || `Class ${label.classId}`}
-                        </span>
-                        {isSelected && (
-                          <Badge variant="secondary" className="text-xs">
-                            Selected
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1 font-mono">
-                        {label.xCenter.toFixed(3)}, {label.yCenter.toFixed(3)} | {label.width.toFixed(3)} x {label.height.toFixed(3)}
-                      </div>
+                return (
+                  <div
+                    key={label.id}
+                    className={`p-2 rounded cursor-pointer transition-colors ${isSelected
+                      ? 'bg-[#FC7603]/10 border border-[#FC7603]/50 text-[#FC7603] font-semibold'
+                      : 'bg-[#000000]/40 border border-zinc-900 hover:bg-[#000000]/60 text-zinc-350'
+                      }`}
+                    onClick={(e) => handleLabelSelect(label.id, e.ctrlKey || e.metaKey)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="text-sm font-medium flex-1">
+                        {category?.name || `Class ${label.classId}`}
+                      </span>
+                      {isSelected && (
+                        <Badge variant="secondary" className="text-xs">
+                          Selected
+                        </Badge>
+                      )}
                     </div>
-                  );
-                })}
-
-                {labels.filter(l => l.id !== 'temp-new').length === 0 && (
-                  <div className="text-center text-gray-500 py-8">
-                    <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No labels yet</p>
-                    <p className="text-xs mt-1">Click a category button above to draw</p>
+                    <div className="text-xs text-gray-400 mt-1 font-mono">
+                      {label.xCenter.toFixed(3)}, {label.yCenter.toFixed(3)} | {label.width.toFixed(3)} x {label.height.toFixed(3)}
+                    </div>
                   </div>
-                )}
-              </div>
-            </ScrollArea>
+                );
+              })}
+
+              {labels.filter(l => l.id !== 'temp-new').length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No labels yet</p>
+                  <p className="text-xs mt-1">Click a category button above to draw</p>
+                </div>
+              )}
+            </div>
           </div>
         </aside>
 
@@ -1408,75 +1974,7 @@ export default function YoloLabelEditor() {
               <span className="font-semibold text-[11px]">Dataset Images</span>
             </button>
           )}
-          {showUpload && (
-            <div className="absolute inset-0 bg-black/50 z-30 flex items-center justify-center">
-              <Card className="w-full max-w-lg bg-gray-800 border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Load Local Dataset</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-gray-400">
-                    Enter the absolute path to your dataset directory. It must contain:
-                  </p>
-                  <ul className="text-xs text-gray-500 list-disc list-inside space-y-1">
-                    <li><code className="text-gray-300">notes.json</code> (Categories)</li>
-                    <li><code className="text-gray-300">image/</code> (Images)</li>
-                    <li><code className="text-gray-300">label/</code> (YOLO .txt files)</li>
-                  </ul>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-gray-400">Directory Path</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="C:\Users\hp\Downloads\LABEL..."
-                        className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={localPath}
-                        onChange={(e) => setLocalPath(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLoadDirectory()}
-                      />
-                      <Button
-                        onClick={handleLoadDirectory}
-                        disabled={isLoading || !localPath}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold border-none rounded-md px-6 shadow-lg transition-all"
-                      >
-                        {isLoading ? 'Loading...' : 'Load'}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-gray-700 bg-gray-900/60 px-3 py-3">
-                    <div className="flex-1 space-y-1">
-                      <div>
-                        <p className="text-sm font-medium text-white">Need a starter project?</p>
-                        <p className="text-xs text-gray-400">Download a ready-made sample dataset with images, labels, and notes.json.</p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={handleDownloadSampleDataset}
-                      disabled={isDownloadingSample}
-                      className="border-gray-600 bg-gray-900 text-white hover:bg-gray-800"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {isDownloadingSample ? 'Preparing...' : 'Download Sample'}
-                    </Button>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowUpload(false)}
-                      disabled={images.length === 0}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
 
           {/* Image Canvas */}
           <div
@@ -1572,8 +2070,8 @@ export default function YoloLabelEditor() {
                     key={tab.id}
                     onClick={() => setRightFilter(tab.id as any)}
                     className={`py-1 px-0.5 font-semibold rounded-md transition-all flex flex-col items-center justify-center leading-tight border ${isActive
-                        ? 'bg-[#FC7603]/15 border-[#FC7603]/40 text-[#FC7603]'
-                        : 'bg-transparent border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
+                      ? 'bg-[#FC7603]/15 border-[#FC7603]/40 text-[#FC7603]'
+                      : 'bg-transparent border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
                       }`}
                     title={tab.id === 'empty' ? 'No labels but file exists (0 annotations)' : tab.label}
                   >
@@ -1589,13 +2087,13 @@ export default function YoloLabelEditor() {
 
             {/* Search Input */}
             <div className="relative">
-              <Search className="absolute left-2.5 top-2 w-3 h-3 text-zinc-500" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#FC7603]" />
               <input
                 type="text"
                 placeholder="Filter images..."
                 value={rightSearchQuery}
                 onChange={(e) => setRightSearchQuery(e.target.value)}
-                className="w-full bg-[#000000]/50 border border-zinc-900 rounded-md pl-7 pr-2 py-1 text-[11px] focus:outline-none focus:border-[#FC7603] text-zinc-200 placeholder-zinc-550"
+                className="w-full bg-[#000000] border border-[#FC7603] rounded-full h-8 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#FC7603] text-zinc-100 placeholder-zinc-500 transition-all shadow-sm"
               />
             </div>
           </div>
@@ -1612,8 +2110,8 @@ export default function YoloLabelEditor() {
                   key={img.path}
                   onClick={() => load_image_(imgIdx)}
                   className={`w-full flex items-center gap-2.5 p-1.5 rounded-lg text-left text-[11px] transition-colors border ${isSelected
-                      ? 'bg-[#FC7603]/10 border-[#FC7603]/40 text-[#FC7603] font-bold'
-                      : 'bg-transparent border-transparent hover:bg-[#000000]/30 text-zinc-300'
+                    ? 'bg-[#FC7603]/10 border-[#FC7603]/40 text-[#FC7603] font-bold'
+                    : 'bg-transparent border-transparent hover:bg-[#000000]/30 text-zinc-300'
                     }`}
                 >
                   {/* Thumbnail preview */}
@@ -1657,6 +2155,358 @@ export default function YoloLabelEditor() {
           </div>
         </aside>
       </div>
+
+      {/* Onboarding & Project Selection Popup over Home Screen */}
+      {showProjectModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-200 animate-in fade-in">
+          <Card className="w-[920px] h-[520px] bg-[#1c191a] border border-zinc-800 shadow-2xl rounded-2xl flex flex-col overflow-hidden text-white transition-none transform-gpu animate-in zoom-in-95 duration-200 shrink-0">
+            <CardHeader className="bg-[#231F20] border-b border-zinc-800 px-6 py-2 flex flex-row items-center justify-between shrink-0">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-white">
+                <FolderGit2 className="w-3.5 h-3.5 text-[#FC7603]" />
+                <span>Project Workspace & Storage</span>
+              </CardTitle>
+              {rootPath && (
+                <button
+                  onClick={() => setShowProjectModal(false)}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                  title="Close Modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </CardHeader>
+
+            <div className="flex-1 flex overflow-hidden divide-x divide-zinc-800/80">
+              <CardContent className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
+              {/* Navigation Tabs */}
+              <div className="flex items-center gap-2 border-b border-zinc-800 pb-3 shrink-0">
+                {projectsList.length > 0 && lastActiveProjectId && (
+                  <button
+                    onClick={() => setProjectTab('continue')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${projectTab === 'continue'
+                      ? 'bg-[#FC7603] text-white shadow'
+                      : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                      }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Active</span>
+                  </button>
+                )}
+
+                {projectsList.length > 0 && (
+                  <button
+                    onClick={() => setProjectTab('select')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${projectTab === 'select'
+                      ? 'bg-[#FC7603] text-white shadow'
+                      : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                      }`}
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>Select Project ({projectsList.length})</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setProjectTab('create')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${projectTab === 'create'
+                    ? 'bg-[#FC7603] text-white shadow'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                    }`}
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>Create Project</span>
+                </button>
+              </div>
+
+              {/* Tab 1: Continue Active Project */}
+              {projectTab === 'continue' && (() => {
+                const lastProj = projectsList.find(p => p.id === lastActiveProjectId) || projectsList[0];
+                if (!lastProj) return null;
+                const isEditingThis = editingProjectId === lastProj.id;
+                return (
+                  <div className="space-y-4 bg-zinc-900/60 p-4 rounded-xl border border-zinc-800">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#FC7603]">Current Active Project</span>
+                      <h3 className="text-base font-bold text-white mt-1">{lastProj.name}</h3>
+
+                      {isEditingThis ? (
+                        <div className="flex gap-2 mt-2 items-center">
+                          <input
+                            type="text"
+                            value={editingPathInput}
+                            onChange={(e) => setEditingPathInput(e.target.value)}
+                            className="flex-1 bg-black/80 border border-[#FC7603] rounded-lg px-2.5 py-1 text-xs text-white font-mono focus:outline-none"
+                            placeholder="Enter new directory path..."
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleUpdateProjectPath(lastProj.id)}
+                            disabled={isLoading}
+                            className="bg-[#FC7603] hover:bg-[#e56a02] text-white h-7 px-3 text-xs font-bold"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingProjectId(null)}
+                            className="h-7 px-2 text-xs text-zinc-400 hover:text-white"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs font-mono text-zinc-400 truncate flex-1">{lastProj.path}</p>
+                          <button
+                            onClick={() => {
+                              setEditingProjectId(lastProj.id);
+                              setEditingPathInput(lastProj.path);
+                            }}
+                            className="px-2 py-0.5 rounded text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white flex items-center gap-1 transition-colors"
+                            title="Edit directory path"
+                          >
+                            <Pencil className="w-3 h-3 text-[#FC7603]" />
+                            <span>Edit Path</span>
+                          </button>
+                        </div>
+                      )}
+
+                      <p className="text-[11px] text-zinc-500 mt-2">
+                        Last opened: {new Date(lastProj.lastOpenedDate || Date.now()).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={() => handleSelectProject(lastProj)}
+                        disabled={isLoading}
+                        className="flex-1 bg-[#FC7603] hover:bg-[#e56a02] text-white font-bold text-xs h-9 rounded-lg shadow-md"
+                      >
+                        {isLoading ? 'Loading Project...' : 'Launch Active Project'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Tab 2: Existing Projects List */}
+              {projectTab === 'select' && (
+                <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
+                  {projectsList.map((p) => {
+                    const isSelected = p.id === (selectedModalProjectId || lastActiveProjectId);
+                    const isEditingThis = editingProjectId === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedModalProjectId(p.id)}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1.5 ${isSelected
+                          ? 'bg-[#FC7603]/15 border-[#FC7603] text-white shadow-sm'
+                          : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 text-zinc-300'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                            {p.id === lastActiveProjectId && (
+                              <Badge className="bg-[#FC7603]/20 text-[#FC7603] border border-[#FC7603]/40 text-[9px] h-4">Active</Badge>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectProject(p);
+                              }}
+                              className={`h-7 px-3 text-[11px] font-bold ${isSelected
+                                ? 'bg-[#FC7603] hover:bg-[#e56a02] text-white'
+                                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
+                                }`}
+                            >
+                              Select
+                            </Button>
+                            <button
+                              onClick={(e) => handleDeleteProjectHistory(p.id, e)}
+                              className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-black/40 transition-colors"
+                              title="Remove from history"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {isEditingThis ? (
+                          <div className="flex gap-1.5 mt-1 items-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={editingPathInput}
+                              onChange={(e) => setEditingPathInput(e.target.value)}
+                              className="flex-1 bg-black/80 border border-[#FC7603] rounded px-2 py-1 text-xs text-white font-mono focus:outline-none"
+                              placeholder="Enter new directory path..."
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateProjectPath(p.id)}
+                              disabled={isLoading}
+                              className="bg-[#FC7603] hover:bg-[#e56a02] text-white h-7 px-2 text-[10px] font-bold"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setEditingProjectId(null)}
+                              className="h-7 px-2 text-[10px] text-zinc-400 hover:text-white"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                            <span className="font-mono truncate flex-1">{p.path}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingProjectId(p.id);
+                                setEditingPathInput(p.path);
+                              }}
+                              className="p-1 rounded text-zinc-500 hover:text-[#FC7603] hover:bg-black/40 transition-colors ml-2 shrink-0 flex items-center gap-1 text-[10px]"
+                              title="Edit path"
+                            >
+                              <Pencil className="w-3 h-3 text-[#FC7603]" />
+                              <span>Edit Path</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Tab 3: Create New Project */}
+              {projectTab === 'create' && (
+                <div className="space-y-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-zinc-300">Project Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Invoices & Receipts 2026"
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      className="w-full bg-[#000000]/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#FC7603]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-zinc-300">Dataset Directory Path</label>
+                    <input
+                      type="text"
+                      placeholder="C:\Users\hp\Downloads\LABEL..."
+                      value={newProjectPath}
+                      onChange={(e) => setNewProjectPath(e.target.value)}
+                      className="w-full bg-[#000000]/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#FC7603]"
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">
+                      Directory path containing <code className="text-zinc-200">image/</code> (images) and optional <code className="text-zinc-200">classes.json</code>.
+                    </p>
+                    {newPathValidation && !newPathValidation.valid && (
+                      <div className="mt-1.5 p-2 bg-[#C31230]/10 border border-[#C31230]/30 rounded-lg text-[10px] text-[#FC8181] space-y-1">
+                        {newPathValidation.dirNotFound ? (
+                          <span className="font-bold block">⚠️ Directory path not found or invalid</span>
+                        ) : (
+                          <>
+                            <span className="font-bold block">⚠️ Incomplete structure detected:</span>
+                            <div className="space-y-0.5">
+                              {newPathValidation.missing.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 pl-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#FC8181]" />
+                                  <span>Missing {item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {newPathValidation && newPathValidation.valid && (
+                      <div className="mt-1.5 p-1.5 bg-green-500/10 border border-green-500/30 rounded-lg text-[10px] text-green-400 font-medium flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Valid project structure found!</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-zinc-900/80 p-2.5 rounded-lg border border-zinc-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-zinc-200">Need a sample dataset?</p>
+                      <p className="text-[10px] text-zinc-400">Download sample-dataset.zip to test immediately.</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadSampleDataset}
+                      disabled={isDownloadingSample}
+                      className="h-7 text-xs border-zinc-700 bg-black hover:bg-zinc-800 text-zinc-200"
+                    >
+                      <Download className="w-3 h-3 mr-1 text-[#FC7603]" />
+                      Sample ZIP
+                    </Button>
+                  </div>
+
+                  <Button
+                    onClick={handleCreateProject}
+                    disabled={isLoading || !newProjectName.trim() || !newProjectPath.trim()}
+                    className="w-full bg-[#FC7603] hover:bg-[#e56a02] text-white font-bold text-xs h-9 rounded-lg shadow-lg shadow-[#FC7603]/20 mt-1"
+                  >
+                    {isLoading ? 'Creating Project...' : 'Create & Launch Project'}
+                  </Button>
+                </div>
+              )}
+              </CardContent>
+              <div className="w-[380px] p-6 space-y-4 bg-[#171415]/95 overflow-y-auto shrink-0 flex flex-col justify-start border-l border-zinc-800/85">
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-1.5 h-3.5 bg-[#FC7603] rounded-sm" />
+                    Dataset Reference Guide
+                  </h4>
+                  <p className="text-[9px] text-zinc-400 mt-1">
+                    Your local directory must conform to this structure to load correctly.
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Directory Structure:</span>
+                  <pre className="bg-black/60 border border-zinc-900 rounded-lg p-3.5 font-mono text-[10px] text-zinc-300 leading-relaxed overflow-x-auto select-all">
+{`my-dataset-folder/
+├── classes.json        <-- Class mappings
+├── images/             <-- Image files (or 'image/')
+│   ├── img001.jpg
+│   └── img002.jpg
+└── labels/             <-- YOLO bounding boxes (or 'label/')
+    ├── img001.txt
+    └── img002.txt`}
+                  </pre>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">classes.json Format:</span>
+                  <pre className="bg-black/60 border border-zinc-900 rounded-lg p-3.5 font-mono text-[10px] text-zinc-300 leading-relaxed overflow-x-auto select-all">
+{`{
+  "categories": [
+    { "id": 0, "name": "logo", "color": "#FF6B6B" },
+    { "id": 1, "name": "signature", "color": "#4ECDC4" }
+  ]
+}`}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

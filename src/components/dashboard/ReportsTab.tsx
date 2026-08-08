@@ -128,7 +128,7 @@ export default function ReportsTab({
 
             <Button
               size="sm"
-              onClick={() => handleGenerateReport('json')}
+              onClick={() => handleGenerateReport('yolo')}
               className="bg-[#FC7603] hover:bg-[#FC7603]/80 border-none text-white font-bold text-xs h-9 px-5 rounded-lg shadow-md shadow-[#FC7603]/20 shrink-0"
             >
               <Download className="w-3.5 h-3.5 mr-1.5" />

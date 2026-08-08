@@ -39,7 +39,7 @@ export default function OverviewTab({
       {/* Welcome Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">Overview & Health Status</h2>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">Overview & Status</h2>
           <p className="text-zinc-400 text-xs mt-1">
             Comprehensive overview of class frequency, box distributions, and dataset validation alerts.
           </p>
@@ -57,7 +57,7 @@ export default function OverviewTab({
           { title: 'Total Label Files', value: (data.stats.totalLabelFiles || 0).toLocaleString(), desc: 'Lable ( .txt ) files', color: '#FC7603' },
           { title: 'Total Bounding Boxes', value: data.stats.totalLabels.toLocaleString(), desc: 'Total boxes', color: '#C31230' },
           { title: 'Total Classes', value: data.stats.totalClasses.toString(), desc: 'Unique class definitions', color: '#004526' },
-          { title: 'Avg Labels / Image', value: data.stats.avgLabels.toFixed(2), desc: 'Average object density', color: '#71717a' }
+          { title: 'Avg Labels / Image', value: data.stats.avgLabels.toFixed(2), desc: 'Average label density', color: '#71717a' }
         ].map((card, i) => (
           <Card key={i} className={`border-none rounded-2xl shadow-lg relative overflow-hidden ${darkMode ? 'bg-[#231F20] border border-[#000000]' : 'bg-white border border-slate-200'
             }`}>
@@ -197,99 +197,6 @@ export default function OverviewTab({
       </div>
 
       {/* Timeline, AI insights, Recent Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* AI Insights Panel */}
-        <Card className={`border-none rounded-2xl shadow-lg lg:col-span-2 ${darkMode ? 'bg-[#231F20] border border-[#000000]' : 'bg-white border border-slate-200'
-          }`}>
-          <CardHeader>
-            <CardTitle className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-[#FC7603]" />
-              AI-Powered Quality Heuristics
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                {data.aiInsights.slice(0, 3).map((insight: string, idx: number) => (
-                  <div key={idx} className="flex gap-2 text-xs text-zinc-300 border-l-2 border-[#FC7603] pl-3 py-0.5">
-                    <p>{insight}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-3">
-                {data.aiInsights.slice(3).map((insight: string, idx: number) => (
-                  <div key={idx} className="flex gap-2 text-xs text-zinc-300 border-l-2 border-[#C31230] pl-3 py-0.5">
-                    <p>{insight}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Timeline Card */}
-        <Card className={`border-none rounded-2xl shadow-lg ${darkMode ? 'bg-[#231F20] border border-[#000000]' : 'bg-white border border-slate-200'
-          }`}>
-          <CardHeader>
-            <CardTitle className="text-white text-sm font-bold uppercase tracking-wider">Dataset Lifecycle</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="relative pl-6 space-y-4">
-              <div className="absolute top-0 bottom-0 left-2.5 w-0.5 bg-[#000000]" />
-              {data.timeline.map((step: any, index: number) => (
-                <div key={index} className="relative flex items-start gap-3">
-                  <div className={`absolute -left-[22px] w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center z-10 ${step.done
-                    ? 'bg-[#FC7603] border-none text-white'
-                    : 'bg-[#231F20] border-zinc-800 text-zinc-500'
-                    }`}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-zinc-200">{step.label}</p>
-                    <p className="text-[10px] text-zinc-550 mt-0.5">{step.date}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* Quick Actions Panel */}
-      <Card className={`border-none rounded-2xl shadow-lg ${darkMode ? 'bg-[#231F20] border border-[#000000]' : 'bg-white border border-slate-200'
-        }`}>
-        <CardHeader>
-          <CardTitle className="text-white text-sm font-bold uppercase tracking-wider">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <Button variant="outline" size="sm" onClick={onClose} className="border-zinc-800 bg-[#000000] text-xs h-9 text-zinc-300">
-              Editor mode
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setActiveTab('explorer')} className="border-zinc-800 bg-[#000000] text-xs h-9 text-zinc-300">
-              Explorer Grid
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setActiveTab('validation')} className="border-zinc-800 bg-[#000000] text-xs h-9 text-zinc-300">
-              Validate Files
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleGenerateReport('json')} className="border-zinc-800 bg-[#000000] text-xs h-9 text-zinc-300">
-              Export JSON
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleGenerateReport('csv')} className="border-zinc-800 bg-[#000000] text-xs h-9 text-zinc-300">
-              Export CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleGenerateReport('pdf')} className="border-zinc-800 bg-[#000000] text-xs h-9 text-zinc-300">
-              Export PDF
-            </Button>
-            <Button className="bg-[#FC7603] hover:bg-[#FC7603]/80 border-none text-white font-semibold text-xs h-9 shadow-md shadow-[#FC7603]/20">
-              Download Statistics
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
     </motion.div>
   );
 }
