@@ -1,3 +1,8 @@
+
+
+
+
+
 # <p align="center"><img src="public/assets/logo.png" alt="LABEL Logo" width="80" height="80" /><br>LABEL</p>
 
 <p align="center">
@@ -8,9 +13,6 @@
   <img src="https://img.shields.io/badge/PRs-welcome-orange.svg" alt="PRs Welcome" />
 </p>
 
-<p align="center">
-  <img width="100%" alt="LABEL Studio Interface" src="https://github.com/user-attachments/assets/d0024f24-e03a-402b-abfa-86043eb48c22" />
-</p>
 
 <p align="center">
   <img width="100%" alt="Terminal Analytics View" src="public/Screenshots/Termianl.png" />
@@ -22,8 +24,10 @@
 ---
 
 ## Video Demonstration
+
+https://github.com/user-attachments/assets/36415595-91f7-4eb2-9cdc-391731120054
 > [!NOTE]
-> *Video walk-through section (To be updated with the demo recording shortly).*
+> *Video walk-through of all sections.*
 
 ---
 
